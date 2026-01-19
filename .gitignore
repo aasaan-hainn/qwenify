@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+my_local_db/
+venv/
+.DS_Store
