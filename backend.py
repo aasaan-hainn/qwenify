@@ -3,7 +3,6 @@ import json
 import os
 import feedparser
 import chromadb
-import ollama
 from openai import OpenAI
 from flask import Flask, request, Response, stream_with_context
 from flask_cors import CORS
@@ -16,7 +15,6 @@ load_dotenv()
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 BASE_URL = os.getenv("NVIDIA_BASE_URL")
 MODEL_NAME = os.getenv("MODEL_NAME")
-EMBED_MODEL = os.getenv("EMBED_MODEL")
 DB_PATH = os.getenv("DB_PATH", "./my_local_db")
 RSS_URL = os.getenv("RSS_URL")
 PORT = int(os.getenv("PORT", 5000))
@@ -29,7 +27,8 @@ CORS(app)  # Allows React to talk to Python
 print("Initializing Clients...")
 nvidia_client = OpenAI(base_url=BASE_URL, api_key=NVIDIA_API_KEY)
 chroma_client = chromadb.PersistentClient(path=DB_PATH)
-collection = chroma_client.get_or_create_collection(name="project_knowledge")
+# Using default embedding function (all-MiniLM-L6-v2 via ONNX)
+collection = chroma_client.get_or_create_collection(name="news_storage")
 
 
 # --- HELPER FUNCTIONS ---
@@ -41,12 +40,9 @@ def fetch_and_store_news():
     # Get top 5
     for entry in feed.entries[:5]:
         text = f"Title: {entry.title}. Summary: {entry.summary}"
-        # Embedding
-        response = ollama.embeddings(model=EMBED_MODEL, prompt=text, keep_alive=0)
-        embedding = response["embedding"]
-        # Store
+        # Store - Chroma handles embedding automatically now
         unique_id = f"news_{int(time.time())}_{feed.entries.index(entry)}"
-        collection.upsert(ids=[unique_id], embeddings=[embedding], documents=[text])
+        collection.upsert(ids=[unique_id], documents=[text])
         news_data.append(entry.title)
 
     return news_data
@@ -68,11 +64,8 @@ def chat():
     user_query = data.get("message", "")
 
     def generate():
-        # 1. RAG Search
-        response = ollama.embeddings(model=EMBED_MODEL, prompt=user_query, keep_alive=0)
-        results = collection.query(
-            query_embeddings=[response["embedding"]], n_results=3
-        )
+        # 1. RAG Search - Chroma handles query embedding automatically
+        results = collection.query(query_texts=[user_query], n_results=3)
 
         context = "No context available."
         if results["documents"][0]:
@@ -117,4 +110,4 @@ def chat():
 
 if __name__ == "__main__":
     # Run the server on the configured Port
-    app.run(port=PORT, debug=True)
+    app.run(port=PORT, debug=False)

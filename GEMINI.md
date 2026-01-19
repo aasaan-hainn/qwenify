@@ -5,7 +5,7 @@
 
 It allows users to:
 1.  **Fetch & Store News**: Scrape Google News RSS and store embeddings in a local ChromaDB.
-2.  **Chat with AI**: Query the news database using natural language. The backend uses the NVIDIA API (Qwen 3 model) and Ollama for embeddings to answer questions based on the stored news context.
+2.  **Chat with AI**: Query the news database using natural language. The backend uses the NVIDIA API (Qwen 3 model) and ChromaDB's built-in embeddings to answer questions based on the stored news context.
 3.  **View Reasoning**: The frontend displays the "Thought Process" (reasoning) of the LLM separately from the final answer.
 
 ## Tech Stack
@@ -16,7 +16,7 @@ It allows users to:
 *   **Database**: ChromaDB (Vector Store)
 *   **AI/LLM**:
     *   **LLM Provider**: NVIDIA API (`qwen/qwen3-next-80b-a3b-thinking`)
-    *   **Embeddings**: Ollama (`nomic-embed-text`)
+    *   **Embeddings**: ChromaDB Default (via ONNX/all-MiniLM-L6-v2)
 *   **Libraries**: `feedparser` (RSS), `flask_cors` (CORS), `openai` (NVIDIA client)
 
 ### Frontend
@@ -31,18 +31,13 @@ It allows users to:
 ### Prerequisites
 *   Node.js & npm
 *   Python 3.8+
-*   Ollama running locally with `nomic-embed-text` model pulled.
-*   NVIDIA API Key (currently hardcoded in `backend.py`, should be moved to env vars).
+*   NVIDIA API Key (configured in `.env`).
 
 ### 1. Backend Setup
 1.  Navigate to the root directory.
-2.  Install dependencies (create a `requirements.txt` if needed, currently inferred):
+2.  Install dependencies:
     ```bash
-    pip install flask flask-cors feedparser chromadb ollama openai
-    ```
-3.  Ensure Ollama is running and the embedding model is available:
-    ```bash
-    ollama pull nomic-embed-text
+    pip install -r requirements.txt
     ```
 
 ### 2. Frontend Setup

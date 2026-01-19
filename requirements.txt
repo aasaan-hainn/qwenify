@@ -2,6 +2,5 @@ flask
 flask-cors
 feedparser
 chromadb
-ollama
 openai
 python-dotenv
