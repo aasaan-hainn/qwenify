@@ -62,6 +62,7 @@ def update_news():
 def chat():
     data = request.json
     user_query = data.get("message", "")
+    history = data.get("history", [])
 
     def generate():
         # 1. RAG Search - Chroma handles query embedding automatically
@@ -71,24 +72,42 @@ def chat():
         if results["documents"][0]:
             context = "\n".join(results["documents"][0])
 
-        # 2. Prepare Prompt
-        final_prompt = f"""
-        You are an intelligent news assistant. Answer based ONLY on the context.
-        CONTEXT: {context}
-        QUESTION: {user_query}
+        # 2. Prepare System Prompt with Instructions
+        system_instruction = f"""
+        You are a helpful assistant for daily life.
+
+        INSTRUCTIONS:
+        1. Check the provided CONTEXT below.
+        2. If the CONTEXT contains information relevant to the user's QUESTION, use it to answer.
+        3. If the CONTEXT is empty or irrelevant to the QUESTION, ignore it and answer using your own knowledge.
+        
+        CONTEXT:
+        {context}
         """
 
-        # 3. Call NVIDIA (Stream)
+        # 3. Construct Message Chain
+        # Start with System Prompt
+        messages_payload = [{"role": "system", "content": system_instruction}]
+        
+        # Add History
+        for msg in history:
+            role = "assistant" if msg["role"] == "ai" else "user"
+            messages_payload.append({"role": role, "content": msg["content"]})
+
+        # Add Latest User Question
+        messages_payload.append({"role": "user", "content": f"QUESTION:\n{user_query}"})
+
+        # 4. Call NVIDIA (Stream)
         completion = nvidia_client.chat.completions.create(
             model=MODEL_NAME,
-            messages=[{"role": "user", "content": final_prompt}],
+            messages=messages_payload,
             temperature=0.6,
             top_p=0.7,
             max_tokens=4096,
             stream=True,
         )
 
-        # 4. Stream Response to React
+        # 5. Stream Response to React
         for chunk in completion:
             # Handle Thinking
             reasoning = getattr(chunk.choices[0].delta, "reasoning_content", None)
