@@ -3,4 +3,5 @@ flask-cors
 feedparser
 chromadb
 openai
-python-dotenv
+python-dotenvrequests
+pypdf

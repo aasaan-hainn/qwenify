@@ -3,6 +3,8 @@ import json
 import os
 import feedparser
 import chromadb
+import requests
+from pypdf import PdfReader
 from openai import OpenAI
 from flask import Flask, request, Response, stream_with_context
 from flask_cors import CORS
@@ -18,6 +20,8 @@ MODEL_NAME = os.getenv("MODEL_NAME")
 DB_PATH = os.getenv("DB_PATH", "./my_local_db")
 RSS_URL = os.getenv("RSS_URL")
 PORT = int(os.getenv("PORT", 5000))
+NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+UPLOADS_DIR = "uploads"
 
 # --- SERVER SETUP ---
 app = Flask(__name__)
@@ -48,14 +52,122 @@ def fetch_and_store_news():
     return news_data
 
 
+def fetch_newsapi_data():
+    print("Fetching data from NewsAPI...")
+    all_articles = []
+
+    # 1. Get Local News (West Bengal) using /everything endpoint
+    # We use "q" to search specifically for your region
+    local_url = f"https://newsapi.org/v2/everything?q=West+Bengal+scheme&sortBy=publishedAt&apiKey={NEWS_API_KEY}"
+    try:
+        local_resp = requests.get(local_url).json()
+        if local_resp.get("status") == "ok":
+            for article in local_resp["articles"][:3]:  # Get top 3 local
+                all_articles.append(
+                    {
+                        "title": article["title"],
+                        "description": article["description"],
+                        "content": article["content"],
+                        "source": "Local News (West Bengal)",
+                    }
+                )
+    except Exception as e:
+        print(f"Error fetching local news: {e}")
+
+    # 2. Get National News (India) using /top-headlines endpoint
+    national_url = f"https://newsapi.org/v2/top-headlines?country=in&category=general&apiKey={NEWS_API_KEY}"
+    try:
+        nat_resp = requests.get(national_url).json()
+        if nat_resp.get("status") == "ok":
+            for article in nat_resp["articles"][:3]:  # Get top 3 national
+                all_articles.append(
+                    {
+                        "title": article["title"],
+                        "description": article["description"],
+                        "content": article["content"],
+                        "source": "National News (India)",
+                    }
+                )
+    except Exception as e:
+        print(f"Error fetching national news: {e}")
+
+    # 3. Store in ChromaDB
+    titles = []
+    for idx, article in enumerate(all_articles):
+        # Create a rich text block for the AI to read
+        full_text = f"""
+        SOURCE: {article["source"]}
+        TITLE: {article["title"]}
+        SUMMARY: {article["description"]}
+        CONTENT: {article["content"]}
+        """
+
+        unique_id = f"newsapi_{int(time.time())}_{idx}"
+
+        collection.upsert(
+            ids=[unique_id],
+            documents=[full_text],
+            metadatas=[{"type": "news", "title": article["title"]}],
+        )
+        titles.append(article["title"])
+
+    return titles
+
+
+def ingest_local_pdfs():
+    print(f"Scanning '{UPLOADS_DIR}' for PDFs...")
+    processed_files = []
+    
+    if not os.path.exists(UPLOADS_DIR):
+        os.makedirs(UPLOADS_DIR)
+        return []
+
+    for root, dirs, files in os.walk(UPLOADS_DIR):
+        for file in files:
+            if file.lower().endswith(".pdf"):
+                file_path = os.path.join(root, file)
+                try:
+                    reader = PdfReader(file_path)
+                    print(f"Processing: {file}")
+                    
+                    for i, page in enumerate(reader.pages):
+                        text = page.extract_text()
+                        if text:
+                            # Contextual ID: filename_page
+                            # Use relative path for clarity (e.g., news/report.pdf)
+                            rel_path = os.path.relpath(file_path, UPLOADS_DIR)
+                            unique_id = f"pdf_{rel_path}_p{i}"
+                            
+                            document_text = f"""
+                            SOURCE: PDF Document ({rel_path}, Page {i+1})
+                            CONTENT: {text}
+                            """
+                            
+                            collection.upsert(
+                                ids=[unique_id],
+                                documents=[document_text],
+                                metadatas=[{"type": "pdf", "source": rel_path, "page": i+1}]
+                            )
+                    processed_files.append(file)
+                except Exception as e:
+                    print(f"Error processing {file}: {e}")
+                    
+    return processed_files
+
+
 # --- API ROUTES ---
 
 
 @app.route("/update-news", methods=["POST"])
 def update_news():
     """Trigger this button from frontend to refresh news"""
-    titles = fetch_and_store_news()
-    return {"status": "success", "articles": titles}
+    rss_titles = fetch_and_store_news()
+    newsapi_titles = fetch_newsapi_data()
+    pdf_files = ingest_local_pdfs()
+    
+    # Combine results for frontend display
+    summary = rss_titles + newsapi_titles + [f"PDF: {f}" for f in pdf_files]
+    return {"status": "success", "articles": summary}
 
 
 @app.route("/chat", methods=["POST"])
@@ -88,7 +200,7 @@ def chat():
         # 3. Construct Message Chain
         # Start with System Prompt
         messages_payload = [{"role": "system", "content": system_instruction}]
-        
+
         # Add History
         for msg in history:
             role = "assistant" if msg["role"] == "ai" else "user"
