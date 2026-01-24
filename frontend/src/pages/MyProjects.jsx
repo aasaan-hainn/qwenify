@@ -132,10 +132,10 @@ const MyProjects = () => {
                         </span>
                     </div>
 
-                    {/* Tool Area - Replaces "Opened Project" */}
-                    <div className="flex-1 flex flex-col rounded-2xl overflow-hidden bg-black/20 border border-white/5 relative">
-                        <div className="flex-1 w-full h-full">
-                             {renderTool()}
+                    {/* Tool Area */}
+                    <div className="flex-1 flex flex-col rounded-2xl overflow-hidden bg-black/20 border border-white/5 relative min-h-0">
+                        <div className="absolute inset-0"> {/* Use absolute inset-0 to force size containment */}
+                            {renderTool()}
                         </div>
                     </div>
                 </div>
