@@ -17,7 +17,8 @@ import {
     IconPlus,
     IconArrowLeft,
     IconTrash,
-    IconX
+    IconX,
+    IconChartBar
 } from "@tabler/icons-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -33,6 +34,7 @@ const MyProjects = () => {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newProjectName, setNewProjectName] = useState('');
     const [creating, setCreating] = useState(false);
+    const [showStats, setShowStats] = useState(false);
 
     // Helper function to get auth headers
     const getAuthHeaders = () => ({
@@ -184,9 +186,20 @@ const MyProjects = () => {
                 {/* Sidebar */}
                 <div className="w-64 flex flex-col gap-6 relative border-r border-white/10 pr-6">
                     {/* Header Section of Sidebar */}
-                    <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-3">
                         <button
-                            onClick={() => setShowCreateModal(true)}
+                            onClick={() => { setShowStats(true); setSelectedProject(null); setActiveTool(null); }}
+                            className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all group ${showStats
+                                ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300'
+                                : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                                }`}
+                        >
+                            <IconChartBar className={`w-5 h-5 ${showStats ? 'text-indigo-300' : 'text-indigo-400 group-hover:text-indigo-300'}`} />
+                            <span className="font-semibold text-sm">Stats</span>
+                        </button>
+
+                        <button
+                            onClick={() => { setShowCreateModal(true); setShowStats(false); }}
                             className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all group"
                         >
                             <IconPlus className="w-5 h-5 text-indigo-400 group-hover:text-indigo-300" />
@@ -208,7 +221,7 @@ const MyProjects = () => {
                             projects.map((project) => (
                                 <div
                                     key={project._id}
-                                    onClick={() => setSelectedProject(project._id)}
+                                    onClick={() => { setSelectedProject(project._id); setShowStats(false); }}
                                     className={`p-4 rounded-xl border transition-all cursor-pointer relative group ${selectedProject === project._id
                                         ? 'bg-white/5 border-indigo-500/50'
                                         : 'border-transparent hover:bg-white/5 hover:border-white/10'
@@ -247,26 +260,53 @@ const MyProjects = () => {
                 </div>
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col gap-4 border border-white/10 rounded-3xl p-4 bg-white/[0.02] overflow-hidden">
-                    {/* Project Toolbar */}
-                    <div className="h-20 w-full border border-white/10 rounded-2xl flex items-center justify-center bg-black/40 backdrop-blur-sm relative overflow-visible group shrink-0">
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-500/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out" />
-                        <div className="flex items-center justify-center w-full">
-                            <FloatingDock
-                                items={links}
-                                desktopClassName="bg-transparent"
-                            />
+                    {showStats ? (
+                        /* Stats Section */
+                        <div className="flex-1 flex flex-col items-center justify-center text-center">
+                            <IconChartBar className="w-16 h-16 text-indigo-500/50 mb-4" />
+                            <h2 className="text-2xl font-semibold text-white mb-2">Stats Dashboard</h2>
+                            <p className="text-slate-500 max-w-md">
+                                Your analytics and insights will appear here. Track your project progress, engagement metrics, and more.
+                            </p>
+                            <div className="mt-8 grid grid-cols-3 gap-6">
+                                <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+                                    <div className="text-3xl font-bold text-indigo-400">{projects.length}</div>
+                                    <div className="text-sm text-slate-500 mt-1">Total Projects</div>
+                                </div>
+                                <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+                                    <div className="text-3xl font-bold text-green-400">0</div>
+                                    <div className="text-sm text-slate-500 mt-1">Published</div>
+                                </div>
+                                <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+                                    <div className="text-3xl font-bold text-purple-400">0</div>
+                                    <div className="text-sm text-slate-500 mt-1">Draft</div>
+                                </div>
+                            </div>
                         </div>
-                        <span className="absolute top-2 left-4 text-[10px] font-mono text-slate-600 uppercase tracking-widest">
-                            Project Toolbar
-                        </span>
-                    </div>
+                    ) : (
+                        <>
+                            {/* Project Toolbar */}
+                            <div className="h-20 w-full border border-white/10 rounded-2xl flex items-center justify-center bg-black/40 backdrop-blur-sm relative overflow-visible group shrink-0">
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-500/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out" />
+                                <div className="flex items-center justify-center w-full">
+                                    <FloatingDock
+                                        items={links}
+                                        desktopClassName="bg-transparent"
+                                    />
+                                </div>
+                                <span className="absolute top-2 left-4 text-[10px] font-mono text-slate-600 uppercase tracking-widest">
+                                    Project Toolbar
+                                </span>
+                            </div>
 
-                    {/* Tool Area */}
-                    <div className="flex-1 flex flex-col rounded-2xl overflow-hidden bg-black/20 border border-white/5 relative min-h-0">
-                        <div className="absolute inset-0 overflow-auto">
-                            {renderTool()}
-                        </div>
-                    </div>
+                            {/* Tool Area */}
+                            <div className="flex-1 flex flex-col rounded-2xl overflow-hidden bg-black/20 border border-white/5 relative min-h-0">
+                                <div className="absolute inset-0 overflow-auto">
+                                    {renderTool()}
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 
