@@ -2,11 +2,12 @@ import { Excalidraw } from "@excalidraw/excalidraw";
 
 export default function Canvas() {
     return (
-    <>
-      <h1 style={{ textAlign: "center" }}>Excalidraw Example</h1>
-      <div>
-        <Excalidraw />
-      </div>
-    </>
-  );
+        <div style={{
+            width: "100%",
+            height: "calc(100vh - 200px)",  // Viewport height minus header and padding
+            minHeight: "400px"
+        }}>
+            <Excalidraw theme="dark" />
+        </div>
+    );
 }
