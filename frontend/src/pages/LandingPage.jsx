@@ -101,9 +101,14 @@ const LandingPage = () => {
                             <form onSubmit={handleStartChat} className="w-full relative group">
                                 <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
                                 <div className="relative flex items-center bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl p-2 shadow-2xl">
-                                    <div className="pl-4 text-indigo-400">
-                                        <Sparkles size={20} />
-                                    </div>
+                                    <button 
+                                        type="button"
+                                        onClick={() => navigate("/chat")}
+                                        className="pl-4 text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer group/icon"
+                                        title="View Recent Chats"
+                                    >
+                                        <Sparkles size={20} className="group-hover/icon:scale-110 transition-transform" />
+                                    </button>
                                     <input
                                         type="text"
                                         value={prompt}
