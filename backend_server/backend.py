@@ -230,38 +230,38 @@ def get_current_user():
 @token_required
 def get_analytics():
     """
-    Get YouTube Analytics data (Mock Implementation).
-    Returns daily views, watch time, and subscriber growth for the last 30 days.
+    Get real YouTube Analytics data from database snapshots.
     """
-    # Generate last 30 days of mock data
-    today = datetime.date.today()
+    from mongodb import channel_stats_collection
+    
+    # Fetch snapshots for this user
+    snapshots = list(channel_stats_collection.find(
+        {"userId": request.user_id}
+    ).sort("recordedAt", 1))
+    
+    if not snapshots:
+        return jsonify({"columns": ["day", "views", "watchTimeMinutes", "subscribersGained"], "rows": []})
+    
     rows = []
-    
-    # Base values for simulation
-    base_views = 150
-    base_watch_time = 400
-    
-    import random
-    
-    for i in range(30):
-        date = today - datetime.timedelta(days=29-i)
-        day_str = date.isoformat()
+    for i in range(len(snapshots)):
+        s = snapshots[i]
+        day_str = s["recordedAt"].date().isoformat()
         
-        # Add some randomness to make charts look realistic
-        daily_views = base_views + random.randint(-50, 100)
-        daily_watch_time = base_watch_time + random.randint(-100, 200)
+        current_views = s.get("views", 0)
+        current_subs = s.get("subscribers", 0)
         
-        # Occasional spikes
-        if i % 7 == 0:  # Weekly spike
-            daily_views += 200
-            daily_watch_time += 300
+        # Calculate daily gain if not the first snapshot
+        if i > 0:
+            prev = snapshots[i-1]
+            daily_views = max(0, current_views - prev.get("views", 0))
+            daily_subs = current_subs - prev.get("subscribers", 0)
+        else:
+            daily_views = 0
+            daily_subs = 0
             
-        # Random subscriber gain (-1 to 5)
-        subs_gained = random.randint(-1, 5)
-        if daily_views > 300:
-            subs_gained += random.randint(1, 3)
-            
-        rows.append([day_str, daily_views, daily_watch_time, subs_gained])
+        # Note: Watch time is not tracked in basic snapshots, setting to 0 or estimated
+        # Using 0 for accuracy as requested "real data"
+        rows.append([day_str, daily_views, 0, daily_subs])
 
     return jsonify({
         "columns": ["day", "views", "watchTimeMinutes", "subscribersGained"],

@@ -12,7 +12,7 @@ import {
     Filler
 } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
-import { IconBrandYoutube, IconLoader2, IconAlertCircle, IconUsers, IconEye, IconVideo, IconCheck, IconX } from '@tabler/icons-react';
+import { IconBrandYoutube, IconLoader2, IconAlertCircle, IconUsers, IconEye, IconVideo, IconCheck, IconX, IconCalendar } from '@tabler/icons-react';
 
 // Register ChartJS components
 ChartJS.register(
@@ -35,6 +35,10 @@ const YouTubeStats = ({ token }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     
+    // Time Range State
+    const [timeRange, setTimeRange] = useState('30d');
+    const [fullData, setFullData] = useState(null);
+    
     // Channel ID input state
     const [channelInput, setChannelInput] = useState('');
     const [isSavingChannel, setIsSavingChannel] = useState(false);
@@ -43,6 +47,13 @@ const YouTubeStats = ({ token }) => {
     useEffect(() => {
         fetchData();
     }, [token]);
+
+    // Re-filter data when time range changes
+    useEffect(() => {
+        if (fullData) {
+            setAnalyticsData(transformData(fullData, timeRange));
+        }
+    }, [fullData, timeRange]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -106,7 +117,8 @@ const YouTubeStats = ({ token }) => {
             }
 
             const data = await response.json();
-            setAnalyticsData(transformData(data));
+            setFullData(data); // Store raw data
+            // Initial transform handled by useEffect
         } catch (err) {
             console.error('Error loading analytics:', err);
             // Allow partial loading (stats might work even if analytics fail)
@@ -148,16 +160,32 @@ const YouTubeStats = ({ token }) => {
         }
     };
 
-    const transformData = (data) => {
+    const transformData = (data, range) => {
         if (!data || !data.rows || !data.columns) return null;
+
+        let filteredRows = data.rows;
+
+        // Apply Time Filter
+        if (range !== 'all') {
+            const now = new Date();
+            const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
+            // Filter logic: Keep rows where date >= (today - days)
+            const cutoff = new Date();
+            cutoff.setDate(now.getDate() - days);
+            
+            filteredRows = data.rows.filter(row => {
+                const rowDate = new Date(row[0]);
+                return rowDate >= cutoff;
+            });
+        }
 
         // data.rows is strictly [["2024-01-01", 120, 340, 2], ...]
         // data.columns is ["day", "views", "watchTimeMinutes", "subscribersGained"]
         
-        const labels = data.rows.map(row => row[0]); // Day
-        const views = data.rows.map(row => row[1]); // Views
-        const watchTime = data.rows.map(row => row[2]); // Watch Time
-        const subscribers = data.rows.map(row => row[3]); // Subscribers
+        const labels = filteredRows.map(row => row[0]); // Day
+        const views = filteredRows.map(row => row[1]); // Views
+        const watchTime = filteredRows.map(row => row[2]); // Watch Time
+        const subscribers = filteredRows.map(row => row[3]); // Subscribers
 
         return {
             labels,
@@ -227,6 +255,24 @@ const YouTubeStats = ({ token }) => {
         },
         maintainAspectRatio: false,
     };
+
+    const TimeRangeSelector = () => (
+        <div className="flex bg-white/5 border border-white/10 rounded-lg p-1 gap-1">
+            {['7d', '30d', '90d', 'all'].map((range) => (
+                <button
+                    key={range}
+                    onClick={() => setTimeRange(range)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                        timeRange === range 
+                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' 
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                >
+                    {range === 'all' ? 'All Time' : `Last ${range.replace('d', ' Days')}`}
+                </button>
+            ))}
+        </div>
+    );
 
     if (loading) {
         return (
@@ -327,63 +373,73 @@ const YouTubeStats = ({ token }) => {
                     </div>
                 )}
 
-                {/* Charts Grid */}
-                {analyticsData ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Views Chart */}
-                        <div className="bg-white/5 border border-white/10 rounded-xl p-6 h-[350px]">
-                            <h3 className="text-lg font-semibold text-white mb-4">Views Overview</h3>
-                            <div className="h-[280px]">
-                                <Line 
-                                    data={{
-                                        labels: analyticsData.labels,
-                                        datasets: [analyticsData.datasets.views]
-                                    }}
-                                    options={commonOptions}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Watch Time Chart */}
-                        <div className="bg-white/5 border border-white/10 rounded-xl p-6 h-[350px]">
-                            <h3 className="text-lg font-semibold text-white mb-4">Watch Time</h3>
-                            <div className="h-[280px]">
-                                <Line 
-                                    data={{
-                                        labels: analyticsData.labels,
-                                        datasets: [analyticsData.datasets.watchTime]
-                                    }}
-                                    options={commonOptions}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Subscribers Chart */}
-                        <div className="bg-white/5 border border-white/10 rounded-xl p-6 h-[350px] lg:col-span-2">
-                            <h3 className="text-lg font-semibold text-white mb-4">Daily Subscriber Growth</h3>
-                            <div className="h-[280px]">
-                                <Bar 
-                                    data={{
-                                        labels: analyticsData.labels,
-                                        datasets: [analyticsData.datasets.subscribers]
-                                    }}
-                                    options={commonOptions}
-                                />
-                            </div>
-                        </div>
+                {/* Filter & Charts Section */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                            <IconCalendar className="w-5 h-5 text-indigo-400" />
+                            Growth Analytics
+                         </h3>
+                         <TimeRangeSelector />
                     </div>
-                ) : (
-                    <div className="flex items-center justify-center p-12 border border-white/10 rounded-xl bg-white/5 text-slate-400">
-                        {error ? (
-                            <div className="text-center">
-                                <IconAlertCircle className="w-8 h-8 mx-auto mb-2 text-red-400" />
-                                <p>{error}</p>
+
+                    {analyticsData ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Views Chart */}
+                            <div className="bg-white/5 border border-white/10 rounded-xl p-6 h-[350px]">
+                                <h3 className="text-lg font-semibold text-white mb-4">Views Overview</h3>
+                                <div className="h-[280px]">
+                                    <Line 
+                                        data={{
+                                            labels: analyticsData.labels,
+                                            datasets: [analyticsData.datasets.views]
+                                        }}
+                                        options={commonOptions}
+                                    />
+                                </div>
                             </div>
-                        ) : (
-                            "Loading Analytics..."
-                        )}
-                    </div>
-                )}
+
+                            {/* Watch Time Chart */}
+                            <div className="bg-white/5 border border-white/10 rounded-xl p-6 h-[350px]">
+                                <h3 className="text-lg font-semibold text-white mb-4">Watch Time</h3>
+                                <div className="h-[280px]">
+                                    <Line 
+                                        data={{
+                                            labels: analyticsData.labels,
+                                            datasets: [analyticsData.datasets.watchTime]
+                                        }}
+                                        options={commonOptions}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Subscribers Chart */}
+                            <div className="bg-white/5 border border-white/10 rounded-xl p-6 h-[350px] lg:col-span-2">
+                                <h3 className="text-lg font-semibold text-white mb-4">Daily Subscriber Growth</h3>
+                                <div className="h-[280px]">
+                                    <Bar 
+                                        data={{
+                                            labels: analyticsData.labels,
+                                            datasets: [analyticsData.datasets.subscribers]
+                                        }}
+                                        options={commonOptions}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-center p-12 border border-white/10 rounded-xl bg-white/5 text-slate-400">
+                            {error ? (
+                                <div className="text-center">
+                                    <IconAlertCircle className="w-8 h-8 mx-auto mb-2 text-red-400" />
+                                    <p>{error}</p>
+                                </div>
+                            ) : (
+                                "Loading Analytics..."
+                            )}
+                        </div>
+                    )}
+                </div>
 
                 <div className="flex justify-end">
                     <button
