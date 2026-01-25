@@ -480,6 +480,73 @@ Remember: Output ONLY the Mermaid code, nothing else. Do NOT include any thinkin
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/generate-writing", methods=["POST"])
+def generate_writing():
+    """Generate or edit text based on user prompt and context"""
+    data = request.json
+    prompt = data.get("prompt", "")
+    selected_text = data.get("selectedText", "")
+    full_text = data.get("fullText", "")
+    
+    if not prompt:
+        return jsonify({"error": "Prompt is required"}), 400
+    
+    # Base system instruction
+    system_instruction = """You are an expert writing assistant. Your task is to generate or edit text based on the user's instructions.
+
+CRITICAL RULES:
+1. Return ONLY the resulting text. Do not add conversational filler like "Here is the text," "Sure," or "I've updated it."
+2. Use markdown formatting (bold, italic, headers) where appropriate.
+3. If the user asks for code, provide just the code.
+"""
+
+    user_content = f"Instruction: {prompt}"
+
+    if selected_text:
+        # Editing a specific selection
+        system_instruction += "\n4. You are editing a specific SELECTION of text. Return ONLY the replacement for that selection. Maintain surrounding context implied by the instruction."
+        user_content += f"\n\nContext/Selection to Edit:\n{selected_text}"
+    
+    elif full_text:
+        # Editing the whole document
+        system_instruction += "\n4. You are acting on the FULL DOCUMENT. You must return the COMPLETE updated document. Do not summarize or omit parts unless explicitly asked. If the user asks to add something, output the original text + the addition."
+        user_content += f"\n\nFull Document Content:\n{full_text}"
+    
+    else:
+        # Generating from scratch
+        system_instruction += "\n4. Generate new text based on the instruction."
+
+    try:
+        completion = nvidia_client.chat.completions.create(
+            model=config.MODEL_NAME,
+            messages=[
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.7,
+            top_p=0.9,
+            max_tokens=4096,  # Increased for full document handling
+            stream=False,
+        )
+        
+        # Handle thinking models
+        message = completion.choices[0].message
+        generated_text = message.content
+        
+        if generated_text is None:
+             reasoning = getattr(message, 'reasoning_content', None)
+             if reasoning:
+                 generated_text = reasoning
+             else:
+                 return jsonify({"error": "AI returned empty response"}), 500
+
+        return jsonify({"text": generated_text.strip()})
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 # --- PROJECT ROUTES ---
 
 @app.route("/projects", methods=["GET"])
