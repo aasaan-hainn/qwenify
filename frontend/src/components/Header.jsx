@@ -34,10 +34,8 @@ const Header = () => {
         return (
             <header className="flex justify-between items-center p-6 lg:px-12 backdrop-blur-[2px] fixed top-0 w-full z-50 border-b border-white/5">
                 <Link to="/" className="flex items-center gap-2 font-bold text-2xl tracking-tighter cursor-pointer">
-                    <div className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 p-2 rounded-lg backdrop-blur-sm border border-indigo-500/20 shadow-[0_0_15px_-3px_rgba(99,102,241,0.3)]">
-                        <Bot size={28} className="text-indigo-400" />
-                    </div>
-                    <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">Creaty</span>
+                    <img src="/favicon.png" alt="Logo" className="w-10 h-10 rounded-lg shadow-[0_0_15px_-3px_rgba(99,102,241,0.3)] border border-indigo-500/20" />
+                    <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">creAItr.</span>
                 </Link>
                 <div className="w-32 h-10 bg-white/5 rounded-full animate-pulse"></div>
             </header>
@@ -48,10 +46,8 @@ const Header = () => {
         <header className="flex justify-between items-center p-6 lg:px-12 backdrop-blur-[2px] fixed top-0 w-full z-50 border-b border-white/5">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2 font-bold text-2xl tracking-tighter cursor-pointer">
-                <div className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 p-2 rounded-lg backdrop-blur-sm border border-indigo-500/20 shadow-[0_0_15px_-3px_rgba(99,102,241,0.3)]">
-                    <Bot size={28} className="text-indigo-400" />
-                </div>
-                <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">Creaty</span>
+                <img src="/favicon.png" alt="Logo" className="w-10 h-10 rounded-lg shadow-[0_0_15px_-3px_rgba(99,102,241,0.3)] border border-indigo-500/20" />
+                <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">creAItr.</span>
             </Link>
 
             {/* Navigation - Conditional based on auth state */}

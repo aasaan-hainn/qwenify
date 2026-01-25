@@ -34,9 +34,9 @@ const LandingPage = () => {
     const handleStartChat = (e) => {
         e.preventDefault();
         if (!prompt.trim()) return;
-        
+
         localStorage.setItem("pending_chat_message", prompt);
-        
+
         if (isAuthenticated) {
             navigate("/chat");
         } else {
@@ -69,7 +69,9 @@ const LandingPage = () => {
 
                         <div className="relative w-full max-w-4xl flex flex-col items-center justify-center">
                             <h1 className="text-7xl md:text-9xl font-bold text-white relative z-20 mb-4 tracking-tighter">
-                                Creaty
+                                <span style={{ fontFamily: "auto" }}>cre</span>
+                                <span className="bg-gradient-to-r from-purple-500 to-blue-500 bg-clip-text text-transparent" style={{ fontFamily: "cursive" }}>AI</span>
+                                <span style={{ fontFamily: "auto" }}>tr.</span>
                             </h1>
                             <div className="w-[40rem] h-40 relative">
                                 {/* Gradients */}
@@ -93,15 +95,18 @@ const LandingPage = () => {
                             </div>
                         </div>
 
-                        <p className="text-xl md:text-2xl text-slate-300 max-w-2xl mb-12 leading-relaxed font-light mt-[-8rem] relative z-20">
+                        <p className="text-xl md:text-2xl text-slate-300 max-w-2xl mb-4 leading-relaxed font-light mt-[-8rem] relative z-20">
                             Stop Drafting. Start Dominating.
+                        </p>
+                        <p className="text-lg md:text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed font-light relative z-20 italic">
+                            Har Sapne Ko Awaj Bharat Ke Liye
                         </p>
 
                         <div className="flex flex-col items-center w-full max-w-xl mx-auto mt-8 z-50">
                             <form onSubmit={handleStartChat} className="w-full relative group">
                                 <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
                                 <div className="relative flex items-center bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl p-2 shadow-2xl">
-                                    <button 
+                                    <button
                                         type="button"
                                         onClick={() => navigate("/chat")}
                                         className="pl-4 text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer group/icon"
@@ -116,7 +121,7 @@ const LandingPage = () => {
                                         placeholder="Ask anything... (e.g., 'Draft a marketing plan')"
                                         className="w-full bg-transparent p-4 outline-none text-white placeholder-slate-500"
                                     />
-                                    <button 
+                                    <button
                                         type="submit"
                                         disabled={!prompt.trim()}
                                         className="p-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -125,7 +130,7 @@ const LandingPage = () => {
                                     </button>
                                 </div>
                             </form>
-                            
+
                             <div className="flex gap-4 mt-6">
                                 <Link to="/chat" className="text-sm text-slate-400 hover:text-white transition-colors flex items-center gap-1">
                                     <Zap size={14} /> Skip to Dashboard
@@ -139,7 +144,7 @@ const LandingPage = () => {
 
                         <div className="max-w-7xl mx-auto relative z-10">
                             <div className="text-center mb-20">
-                                <h2 className="text-4xl md:text-5xl font-bold mb-6">Why Creaty?</h2>
+                                <h2 className="text-4xl md:text-5xl font-bold mb-6">Why creAItr.?</h2>
                                 <p className="text-slate-400 max-w-2xl mx-auto">
                                     Built for performance, privacy, and precision. We combine the power of large language models with local retrieval augmented generation.
                                 </p>
@@ -201,7 +206,7 @@ const LandingPage = () => {
                         <a href="#" className="hover:text-purple-400 transition-colors">GitHub</a>
                         <a href="#" className="hover:text-purple-400 transition-colors">Discord</a>
                     </div>
-                    <p>&copy; {new Date().getFullYear()} Creaty. All rights reserved.</p>
+                    <p>&copy; {new Date().getFullYear()} creAItr. All rights reserved.</p>
                 </footer>
             </div>
         </div>

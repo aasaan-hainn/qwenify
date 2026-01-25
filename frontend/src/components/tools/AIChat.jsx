@@ -38,7 +38,7 @@ function AIChat({ hideSidebar = false, projectId = null }) {
   const [loading, setLoading] = useState(false);
   const [newsLoading, setNewsLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
-  
+
   // Standalone chat session state
   const [chatSessions, setChatSessions] = useState([]);
   const [currentChatId, setCurrentChatId] = useState(null);
@@ -86,15 +86,15 @@ function AIChat({ hideSidebar = false, projectId = null }) {
   const loadChatHistory = async () => {
     setHistoryLoading(true);
     try {
-      const url = projectId 
+      const url = projectId
         ? `${API_BASE_URL}/projects/${projectId}/workspace/chat`
         : `${API_BASE_URL}/chats/${currentChatId}`;
-      
+
       const response = await fetch(url, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       const data = await response.json();
-      
+
       const history = projectId ? data.chatHistory : data.messages;
       if (history && history.length > 0) {
         setMessages(history);
@@ -117,7 +117,7 @@ function AIChat({ hideSidebar = false, projectId = null }) {
   const deleteChatSession = async (chatId, e) => {
     e.stopPropagation();
     if (!confirm("Delete this chat?")) return;
-    
+
     try {
       await fetch(`${API_BASE_URL}/chats/${chatId}`, {
         method: "DELETE",
@@ -137,13 +137,13 @@ function AIChat({ hideSidebar = false, projectId = null }) {
       setEditingChatId(null);
       return;
     }
-    
+
     try {
       await fetch(`${API_BASE_URL}/chats/${chatId}`, {
         method: "PATCH",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}` 
+          "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({ title: editingTitle.trim() })
       });
@@ -156,13 +156,13 @@ function AIChat({ hideSidebar = false, projectId = null }) {
 
   const saveChatMessage = async (message, existingChatId = null) => {
     const targetChatId = existingChatId || currentChatId;
-    
+
     // 1. If inside a project
     if (projectId) {
       try {
         await fetch(`${API_BASE_URL}/projects/${projectId}/workspace/chat`, {
           method: "POST",
-          headers: { 
+          headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`
           },
@@ -179,12 +179,12 @@ function AIChat({ hideSidebar = false, projectId = null }) {
 
     try {
       let chatId = targetChatId;
-      
+
       // Create new session if none exists
       if (!chatId) {
         const createRes = await fetch(`${API_BASE_URL}/chats`, {
           method: "POST",
-          headers: { 
+          headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`
           },
@@ -199,7 +199,7 @@ function AIChat({ hideSidebar = false, projectId = null }) {
       // Add message to session
       await fetch(`${API_BASE_URL}/chats/${chatId}/message`, {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
@@ -330,10 +330,10 @@ function AIChat({ hideSidebar = false, projectId = null }) {
 
       // Save AI response to project history
       if (accumulatedContent) {
-        saveChatMessage({ 
-          role: "ai", 
-          content: accumulatedContent, 
-          thought: accumulatedThought 
+        saveChatMessage({
+          role: "ai",
+          content: accumulatedContent,
+          thought: accumulatedThought
         }, activeChatId);
       }
     } catch (e) {
@@ -365,9 +365,9 @@ function AIChat({ hideSidebar = false, projectId = null }) {
             </Link>
             <div className="flex items-center gap-3 text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 font-bold text-2xl mb-6">
               <Bot size={32} className="text-indigo-500" />
-              <span>Creaty Chat</span>
+              <span>creAItr. Chat</span>
             </div>
-            
+
             <button
               onClick={startNewStandaloneChat}
               className="w-full flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded-xl transition-all text-sm font-medium mb-4 group"
@@ -381,7 +381,7 @@ function AIChat({ hideSidebar = false, projectId = null }) {
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 px-2">
               Recent Chats
             </div>
-            
+
             <AnimatePresence>
               {chatSessions.map((session) => (
                 <motion.div
@@ -395,15 +395,14 @@ function AIChat({ hideSidebar = false, projectId = null }) {
                       loadChatHistory();
                     }
                   }}
-                  className={`group flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border ${
-                    currentChatId === session._id 
-                    ? "bg-indigo-500/10 border-indigo-500/30 text-white" 
-                    : "border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200"
-                  }`}
+                  className={`group flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border ${currentChatId === session._id
+                      ? "bg-indigo-500/10 border-indigo-500/30 text-white"
+                      : "border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                    }`}
                 >
                   <div className="flex items-center gap-3 overflow-hidden flex-1">
                     <MessageSquare size={16} className={currentChatId === session._id ? "text-indigo-400" : "text-slate-500"} />
-                    
+
                     {editingChatId === session._id ? (
                       <input
                         autoFocus
