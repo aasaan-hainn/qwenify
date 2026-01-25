@@ -27,6 +27,16 @@ import { useAuth } from "../../context/AuthContext";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+// Helper to convert LaTeX delimiters to Markdown delimiters
+const preprocessLaTeX = (content) => {
+  if (typeof content !== 'string') return content;
+  return content
+    .replace(/\\\[/g, '$$$')
+    .replace(/\\\]/g, '$$$')
+    .replace(/\\\(/g, '$')
+    .replace(/\\\)/g, '$');
+};
+
 const DEFAULT_MESSAGE = {
   role: "ai",
   content: "Hello! I am connected to **Qwen 3 (NVIDIA)** and your local **News Database**. \n\nI can analyze PDFs, read the latest news, and answer your questions with real-time reasoning.",
@@ -571,7 +581,7 @@ function AIChat({ hideSidebar = false, projectId = null }) {
                               td: ({ ...props }) => <td className="px-4 py-2 text-sm text-slate-300 border-t border-white/5" {...props} />,
                             }}
                           >
-                            {msg.content}
+                            {preprocessLaTeX(msg.content)}
                           </ReactMarkdown>
                         </div>
                         {/* TTS Button (Only for AI) */}

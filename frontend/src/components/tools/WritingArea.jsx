@@ -8,6 +8,16 @@ import 'katex/dist/katex.min.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+// Helper to convert LaTeX delimiters to Markdown delimiters
+const preprocessLaTeX = (content) => {
+    if (typeof content !== 'string') return content;
+    return content
+        .replace(/\\\[/g, '$$$')
+        .replace(/\\\]/g, '$$$')
+        .replace(/\\\(/g, '$')
+        .replace(/\\\)/g, '$');
+};
+
 export default function WritingArea({ projectId, token }) {
     const [content, setContent] = useState("");
     const [showPreview, setShowPreview] = useState(false);
@@ -288,8 +298,48 @@ export default function WritingArea({ projectId, token }) {
                         <ReactMarkdown 
                             remarkPlugins={[remarkGfm, remarkMath]} 
                             rehypePlugins={[rehypeKatex]}
+                            components={{
+                                code: ({ ...props }) => (
+                                    <code
+                                        className="bg-white/10 rounded px-1 py-0.5 text-indigo-300 font-mono text-sm"
+                                        {...props}
+                                    />
+                                ),
+                                pre: ({ ...props }) => (
+                                    <pre
+                                        className="bg-black/50 p-4 rounded-lg overflow-x-auto my-2 text-sm border border-white/5"
+                                        {...props}
+                                    />
+                                ),
+                                a: ({ ...props }) => (
+                                    <a
+                                        className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
+                                        {...props}
+                                    />
+                                ),
+                                ul: ({ ...props }) => (
+                                    <ul
+                                        className="list-disc pl-4 space-y-1 my-2"
+                                        {...props}
+                                    />
+                                ),
+                                ol: ({ ...props }) => (
+                                    <ol
+                                        className="list-decimal pl-4 space-y-1 my-2"
+                                        {...props}
+                                    />
+                                ),
+                                table: ({ ...props }) => (
+                                    <div className="overflow-x-auto my-4 w-full">
+                                        <table className="min-w-full divide-y divide-white/10 border border-white/10 rounded-xl overflow-hidden" {...props} />
+                                    </div>
+                                ),
+                                thead: ({ ...props }) => <thead className="bg-white/5" {...props} />,
+                                th: ({ ...props }) => <th className="px-4 py-2 text-left text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-white/10" {...props} />,
+                                td: ({ ...props }) => <td className="px-4 py-2 text-sm text-slate-300 border-b border-white/5" {...props} />,
+                            }}
                         >
-                            {content || "*Nothing to preview*"}
+                            {preprocessLaTeX(content) || "*Nothing to preview*"}
                         </ReactMarkdown>
                     </div>
                 ) : (
