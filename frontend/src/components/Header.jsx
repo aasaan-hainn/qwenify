@@ -11,7 +11,7 @@ const Header = () => {
     const navItems = [
         { label: "Home", href: "/" },
         { label: "My-Projects", href: "/my-projects" },
-        { label: "Support", href: "#" },
+        { label: "Support", href: "/support" },
         { label: "Settings", href: "#" },
     ];
 

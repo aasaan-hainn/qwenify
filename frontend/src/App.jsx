@@ -4,6 +4,7 @@ import Chat from './pages/Chat';
 import LandingPage from './pages/LandingPage';
 import MyProjects from './pages/MyProjects';
 import Auth from './pages/Auth';
+import Support from './pages/Support';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
           <Route path="/auth" element={<Auth />} />
           <Route path="/my-projects" element={<MyProjects />} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/support" element={<Support />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
