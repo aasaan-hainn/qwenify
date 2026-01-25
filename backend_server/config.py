@@ -33,3 +33,6 @@ JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "default-secret-change-me")
 
 # YouTube
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+
+# Google OAuth
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")

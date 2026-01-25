@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
+import { useGoogleLogin } from '@react-oauth/google';
 import { BackgroundLines } from '../components/ui/background-lines';
 import { useAuth } from '../context/AuthContext';
 
@@ -14,7 +15,7 @@ const SOCIAL_PLATFORMS = [
 
 const Auth = () => {
     const navigate = useNavigate();
-    const { login, register, isAuthenticated } = useAuth();
+    const { login, register, isAuthenticated, googleLogin } = useAuth();
 
     const [isLogin, setIsLogin] = useState(true);
     const [socialAccounts, setSocialAccounts] = useState([]);
@@ -25,6 +26,32 @@ const Auth = () => {
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+
+    // Google Login Flow
+    const googleLoginFlow = useGoogleLogin({
+        onSuccess: async (tokenResponse) => {
+            setLoading(true);
+            setError('');
+            try {
+                const result = await googleLogin(tokenResponse.access_token);
+                if (result.success) {
+                    const pendingMsg = localStorage.getItem("pending_chat_message");
+                    if (pendingMsg) {
+                        navigate('/chat');
+                    } else {
+                        navigate('/my-projects');
+                    }
+                } else {
+                    setError(result.error);
+                }
+            } catch (err) {
+                setError('Google login failed');
+            } finally {
+                setLoading(false);
+            }
+        },
+        onError: () => setError('Google login failed'),
+    });
 
     // Redirect if already authenticated
     React.useEffect(() => {
@@ -185,7 +212,9 @@ const Auth = () => {
 
                                 <button
                                     type="button"
-                                    className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center justify-center gap-3 transition-all duration-300"
+                                    onClick={() => googleLoginFlow()}
+                                    disabled={loading}
+                                    className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <svg className="w-5 h-5" viewBox="0 0 24 24">
                                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -349,7 +378,9 @@ const Auth = () => {
 
                                 <button
                                     type="button"
-                                    className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center justify-center gap-3 transition-all duration-300"
+                                    onClick={() => googleLoginFlow()}
+                                    disabled={loading}
+                                    className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <svg className="w-5 h-5" viewBox="0 0 24 24">
                                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />

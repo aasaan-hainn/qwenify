@@ -11,7 +11,7 @@ from mongodb import projects_collection, users_collection, chats_collection
 from news_ingest import fetch_and_store_news, fetch_newsapi_data, clear_existing_news
 from pdf_ingest import ingest_local_pdfs
 from tts import generate_tts_audio
-from auth import hash_password, verify_password, generate_token, verify_token, token_required
+from auth import hash_password, verify_password, generate_token, verify_token, token_required, verify_google_token
 from youtube_stats import (
     get_channel_stats, save_stats_snapshot, should_update_snapshot,
     calculate_growth, generate_growth_graph, get_stats_history
@@ -112,6 +112,66 @@ def login():
             "id": user_id,
             "email": user["email"],
             "socialAccounts": user.get("socialAccounts", [])
+        }
+    })
+
+
+@app.route("/auth/google", methods=["POST"])
+def google_login():
+    """Login or register with Google"""
+    data = request.json
+    token = data.get("token")
+    
+    if not token:
+        return jsonify({"error": "Token is required"}), 400
+        
+    id_info = verify_google_token(token)
+    if not id_info:
+        return jsonify({"error": "Invalid Google token"}), 401
+        
+    email = id_info.get("email").lower()
+    
+    # Check if user exists
+    user = users_collection.find_one({"email": email})
+    
+    if not user:
+        # Create new user
+        user = {
+            "email": email,
+            "password": "",  # No password for Google users
+            "socialAccounts": [],
+            "createdAt": datetime.datetime.now().isoformat(),
+            "googleId": id_info.get("id"),
+            "name": id_info.get("name"),
+            "picture": id_info.get("picture")
+        }
+        result = users_collection.insert_one(user)
+        user_id = str(result.inserted_id)
+    else:
+        user_id = str(user["_id"])
+        # Update google info if missing
+        if "googleId" not in user:
+            users_collection.update_one(
+                {"_id": user["_id"]},
+                {"$set": {
+                    "googleId": id_info.get("id"),
+                    "name": user.get("name") or id_info.get("name"),
+                    "picture": user.get("picture") or id_info.get("picture")
+                }}
+            )
+            
+    # Generate JWT
+    jwt_token = generate_token(user_id, email)
+    
+    return jsonify({
+        "message": "Login successful",
+        "token": jwt_token,
+        "user": {
+            "id": user_id,
+            "email": email,
+            "socialAccounts": user.get("socialAccounts", []),
+            "name": user.get("name") or id_info.get("name"),
+            "picture": user.get("picture") or id_info.get("picture")
         }
     })
 

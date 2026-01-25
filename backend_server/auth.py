@@ -3,6 +3,7 @@ import jwt
 import datetime
 from functools import wraps
 from flask import request, jsonify
+import requests
 import config
 
 
@@ -67,3 +68,17 @@ def token_required(f):
         return f(*args, **kwargs)
     
     return decorated
+
+
+def verify_google_token(token: str):
+    """Verify Google Access Token and get user info"""
+    try:
+        response = requests.get(
+            f"https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token={token}"
+        )
+        if response.status_code == 200:
+            return response.json()
+        return None
+    except Exception as e:
+        print(f"Token verification failed: {e}")
+        return None

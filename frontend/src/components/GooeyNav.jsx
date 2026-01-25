@@ -45,7 +45,7 @@ const GooeyNav = ({
     for (let i = 0; i < particleCount; i++) {
       const t = animationTime * 2 + noise(timeVariance * 2);
       const p = createParticle(i, t, d, r);
-      element.classList.remove('active');
+      // element.classList.remove('active');
       setTimeout(() => {
         const particle = document.createElement('span');
         const point = document.createElement('span');
@@ -164,7 +164,7 @@ const GooeyNav = ({
           }
           .effect.text {
             color: white;
-            transition: color 0.3s ease;
+            transition: color 0.3s ease, left 1.2s cubic-bezier(0.19, 1, 0.22, 1), top 1.2s cubic-bezier(0.19, 1, 0.22, 1), width 1.2s cubic-bezier(0.19, 1, 0.22, 1), height 1.2s cubic-bezier(0.19, 1, 0.22, 1);
           }
           .effect.text.active {
             color: black;
@@ -173,6 +173,7 @@ const GooeyNav = ({
           .effect.filter {
             filter: blur(7px) contrast(100) blur(0);
             mix-blend-mode: lighten;
+            transition: left 1.2s cubic-bezier(0.19, 1, 0.22, 1), top 1.2s cubic-bezier(0.19, 1, 0.22, 1), width 1.2s cubic-bezier(0.19, 1, 0.22, 1), height 1.2s cubic-bezier(0.19, 1, 0.22, 1);
           }
           .effect.filter::before {
             content: "";
@@ -190,15 +191,11 @@ const GooeyNav = ({
             opacity: 0;
             z-index: -1;
             border-radius: 9999px;
+            transition: transform 0.3s ease, opacity 0.3s ease;
           }
           .effect.active::after {
-            animation: pill 0.3s ease both;
-          }
-          @keyframes pill {
-            to {
-              transform: scale(1);
-              opacity: 1;
-            }
+            transform: scale(1);
+            opacity: 1;
           }
           .particle,
           .point {

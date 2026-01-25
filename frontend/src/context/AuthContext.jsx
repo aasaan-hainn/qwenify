@@ -82,6 +82,34 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const googleLogin = async (credential) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/auth/google`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ token: credential })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Google login failed');
+            }
+
+            // Store token and user
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            setToken(data.token);
+            setUser(data.user);
+
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    };
+
     const register = async (formData) => {
         try {
             const response = await fetch(`${API_BASE_URL}/auth/register`, {
@@ -123,6 +151,7 @@ export const AuthProvider = ({ children }) => {
         loading,
         isAuthenticated: !!user && !!token,
         login,
+        googleLogin,
         register,
         logout
     };
