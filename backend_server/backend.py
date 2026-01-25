@@ -480,6 +480,60 @@ Remember: Output ONLY the Mermaid code, nothing else. Do NOT include any thinkin
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/generate-writing", methods=["POST"])
+def generate_writing():
+    """Generate or edit text based on user prompt and context"""
+    data = request.json
+    prompt = data.get("prompt", "")
+    selected_text = data.get("selectedText", "")
+    
+    if not prompt:
+        return jsonify({"error": "Prompt is required"}), 400
+    
+    system_instruction = """You are an expert writing assistant. Your task is to generate or edit text based on the user's instructions.
+
+CRITICAL RULES:
+1. Return ONLY the resulting text. Do not add conversational filler like "Here is the text," "Sure," or "I've updated it."
+2. If editing text, maintain the original meaning unless asked to change it.
+3. Use markdown formatting (bold, italic, headers) where appropriate.
+4. If the user asks for code, provide just the code.
+"""
+
+    user_content = f"Instruction: {prompt}"
+    if selected_text:
+        user_content += f"\n\nContext/Text to Edit:\n{selected_text}"
+
+    try:
+        completion = nvidia_client.chat.completions.create(
+            model=config.MODEL_NAME,
+            messages=[
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.7,
+            top_p=0.9,
+            max_tokens=2048,
+            stream=False,
+        )
+        
+        # Handle thinking models
+        message = completion.choices[0].message
+        generated_text = message.content
+        
+        if generated_text is None:
+             reasoning = getattr(message, 'reasoning_content', None)
+             if reasoning:
+                 generated_text = reasoning
+             else:
+                 return jsonify({"error": "AI returned empty response"}), 500
+
+        return jsonify({"text": generated_text.strip()})
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 # --- PROJECT ROUTES ---
 
 @app.route("/projects", methods=["GET"])
