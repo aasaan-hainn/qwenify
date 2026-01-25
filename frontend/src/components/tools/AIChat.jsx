@@ -17,6 +17,10 @@ import {
   Check,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { motion, AnimatePresence } from "motion/react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -524,37 +528,47 @@ function AIChat({ hideSidebar = false, projectId = null }) {
                             }`}
                         >
                           <ReactMarkdown
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
                             components={{
-                              code: ({ node, ...props }) => (
+                              code: ({ ...props }) => (
                                 <code
                                   className="bg-black/30 rounded px-1 py-0.5 text-indigo-300 font-mono text-sm"
                                   {...props}
                                 />
                               ),
-                              pre: ({ node, ...props }) => (
+                              pre: ({ ...props }) => (
                                 <pre
                                   className="bg-black/50 p-4 rounded-lg overflow-x-auto my-2 text-sm border border-white/5"
                                   {...props}
                                 />
                               ),
-                              a: ({ node, ...props }) => (
+                              a: ({ ...props }) => (
                                 <a
                                   className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
                                   {...props}
                                 />
                               ),
-                              ul: ({ node, ...props }) => (
+                              ul: ({ ...props }) => (
                                 <ul
                                   className="list-disc pl-4 space-y-1 my-2"
                                   {...props}
                                 />
                               ),
-                              ol: ({ node, ...props }) => (
+                              ol: ({ ...props }) => (
                                 <ol
                                   className="list-decimal pl-4 space-y-1 my-2"
                                   {...props}
                                 />
                               ),
+                              table: ({ ...props }) => (
+                                <div className="overflow-x-auto my-4 w-full">
+                                  <table className="min-w-full divide-y divide-white/10 border border-white/10 rounded-xl overflow-hidden" {...props} />
+                                </div>
+                              ),
+                              thead: ({ ...props }) => <thead className="bg-white/5" {...props} />,
+                              th: ({ ...props }) => <th className="px-4 py-2 text-left text-xs font-bold text-slate-400 uppercase tracking-wider" {...props} />,
+                              td: ({ ...props }) => <td className="px-4 py-2 text-sm text-slate-300 border-t border-white/5" {...props} />,
                             }}
                           >
                             {msg.content}
