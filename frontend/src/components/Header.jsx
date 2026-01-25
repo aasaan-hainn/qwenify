@@ -21,6 +21,7 @@ const Header = () => {
         const path = location.pathname;
         if (path === '/') return 0;
         if (path.startsWith('/my-projects')) return 1;
+        if (path.startsWith('/support')) return 2;
         return 0;
     };
 
