@@ -134,15 +134,23 @@ export default function WritingArea({ projectId, token }) {
         setAiError("");
 
         try {
+            const payload = { prompt: aiPrompt };
+            let mode = "generate"; // generate, edit-selection, edit-full
+
+            if (selectedContext) {
+                payload.selectedText = selectedContext;
+                mode = "edit-selection";
+            } else if (content.trim()) {
+                payload.fullText = content;
+                mode = "edit-full";
+            }
+
             const response = await fetch(`${API_BASE_URL}/generate-writing`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ 
-                    prompt: aiPrompt,
-                    selectedText: selectedContext
-                })
+                body: JSON.stringify(payload)
             });
 
             const data = await response.json();
@@ -154,19 +162,22 @@ export default function WritingArea({ projectId, token }) {
             const generatedText = data.text;
             const textarea = textareaRef.current;
             
-            if (textarea && selectedContext) {
+            if (mode === "edit-selection" && textarea) {
                 // Replace selection
                 const start = textarea.selectionStart;
                 const end = textarea.selectionEnd;
                 const newContent = content.substring(0, start) + generatedText + content.substring(end);
                 setContent(newContent);
+            } else if (mode === "edit-full") {
+                // Replace full document
+                setContent(generatedText);
             } else if (textarea) {
-                // Insert at cursor
+                // Insert at cursor (scratch generation)
                 const start = textarea.selectionStart;
                 const newContent = content.substring(0, start) + generatedText + content.substring(start);
                 setContent(newContent);
             } else {
-                // Append
+                // Fallback append
                 setContent(prev => prev + "\n" + generatedText);
             }
 
@@ -323,7 +334,9 @@ export default function WritingArea({ projectId, token }) {
                     <p className="text-slate-400 text-sm mb-4">
                         {selectedContext 
                             ? `Editing selection (${selectedContext.length} chars). Describe how to change it.` 
-                            : "Describe what you want to write. AI will generate text for you."}
+                            : content.trim()
+                                ? "Editing entire document. AI will update the text based on your prompt."
+                                : "Describe what you want to write. AI will generate text for you."}
                     </p>
 
                     {/* Prompt Input */}
@@ -364,7 +377,11 @@ export default function WritingArea({ projectId, token }) {
                         ) : (
                             <>
                                 <Send size={18} />
-                                <span>{selectedContext ? "Edit Selection" : "Generate Text"}</span>
+                                <span>
+                                    {selectedContext 
+                                        ? "Edit Selection" 
+                                        : content.trim() ? "Update Document" : "Generate Text"}
+                                </span>
                             </>
                         )}
                     </button>
