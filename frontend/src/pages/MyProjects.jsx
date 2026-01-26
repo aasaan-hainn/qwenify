@@ -36,6 +36,7 @@ const MyProjects = () => {
     const [newProjectName, setNewProjectName] = useState('');
     const [creating, setCreating] = useState(false);
     const [showStats, setShowStats] = useState(false);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
     // Helper function to get auth headers
     const getAuthHeaders = () => ({
@@ -185,7 +186,7 @@ const MyProjects = () => {
 
             <div className="flex flex-1 pt-24 px-6 gap-6 pb-6 overflow-hidden">
                 {/* Sidebar */}
-                <div className="w-64 flex flex-col gap-6 relative border-r border-white/10 pr-6">
+                <div className={`${isSidebarCollapsed ? 'w-0 opacity-0 pr-0 border-r-0 overflow-hidden' : 'w-64 opacity-100 pr-6 border-r border-white/10'} flex flex-col gap-6 relative transition-all duration-300 ease-in-out`}>
                     {/* Header Section of Sidebar */}
                     <div className="flex flex-col gap-3">
                         <button
@@ -252,12 +253,17 @@ const MyProjects = () => {
                         )}
                     </div>
 
-                    {/* Collapse Button */}
-                    <div className="absolute -right-3 top-1/2 -translate-y-1/2 z-10">
-                        <button className="h-6 w-6 rounded-full bg-black border border-white/20 flex items-center justify-center hover:scale-110 transition-transform">
-                            <IconArrowLeft className="w-3 h-3 text-slate-400" />
-                        </button>
-                    </div>
+                </div>
+
+                {/* Collapse Button - Outside sidebar so it's always visible */}
+                <div className="absolute left-[var(--sidebar-offset)] top-1/2 -translate-y-1/2 z-20 transition-all duration-300" style={{ '--sidebar-offset': isSidebarCollapsed ? '8px' : '268px' }}>
+                    <button
+                        onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                        className="h-6 w-6 rounded-full bg-black border border-white/20 flex items-center justify-center hover:scale-110 hover:border-indigo-500/50 transition-all"
+                        title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                    >
+                        <IconArrowLeft className={`w-3 h-3 text-slate-400 transition-transform duration-300 ${isSidebarCollapsed ? 'rotate-180' : ''}`} />
+                    </button>
                 </div>
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col gap-4 border border-white/10 rounded-3xl p-4 bg-white/[0.02] overflow-hidden">

@@ -15,6 +15,8 @@ import {
   Trash2,
   Edit2,
   Check,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from 'remark-gfm';
@@ -58,14 +60,38 @@ function AIChat({ hideSidebar = false, projectId = null }) {
   const [currentChatId, setCurrentChatId] = useState(null);
   const [editingChatId, setEditingChatId] = useState(null);
   const [editingTitle, setEditingTitle] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const messagesEndRef = useRef(null);
+  const containerRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(scrollToBottom, [messages]);
+
+  // Handle fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) return;
+    try {
+      if (!document.fullscreenElement) {
+        await containerRef.current.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (error) {
+      console.error("Error toggling fullscreen:", error);
+    }
+  };
 
   // Restore pending message from Landing Page
   useEffect(() => {
@@ -363,7 +389,7 @@ function AIChat({ hideSidebar = false, projectId = null }) {
   };
 
   return (
-    <div className="flex h-full bg-black text-slate-100 font-sans relative selection:bg-indigo-500/30">
+    <div ref={containerRef} className={`flex h-full bg-black text-slate-100 font-sans relative selection:bg-indigo-500/30 ${isFullscreen ? 'rounded-none' : ''}`}>
       {/* Background Gradients */}
       {/* <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/10 blur-[120px] rounded-full pointer-events-none" />
       <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 blur-[120px] rounded-full pointer-events-none" /> */}
@@ -416,8 +442,8 @@ function AIChat({ hideSidebar = false, projectId = null }) {
                     }
                   }}
                   className={`group flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border ${currentChatId === session._id
-                      ? "bg-indigo-500/10 border-indigo-500/30 text-white"
-                      : "border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                    ? "bg-indigo-500/10 border-indigo-500/30 text-white"
+                    : "border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200"
                     }`}
                 >
                   <div className="flex items-center gap-3 overflow-hidden flex-1">
@@ -499,6 +525,14 @@ function AIChat({ hideSidebar = false, projectId = null }) {
 
       {/* Chat Area */}
       <div className="flex-1 flex flex-col w-full relative z-10 max-w-6xl mx-auto">
+        {/* Fullscreen Toggle */}
+        <button
+          onClick={toggleFullscreen}
+          className="absolute top-4 right-4 z-30 flex items-center justify-center w-8 h-8 bg-black/40 backdrop-blur-md rounded-full text-white/70 border border-white/5 hover:bg-white/10 hover:text-white transition-all duration-200"
+          title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+        >
+          {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+        </button>
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
           <div className="min-h-full flex flex-col justify-end space-y-8">

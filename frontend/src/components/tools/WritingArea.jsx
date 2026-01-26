@@ -17,6 +17,8 @@ import {
   Edit3,
   Table,
   Highlighter,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -50,7 +52,31 @@ export default function WritingArea({ projectId, token }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiError, setAiError] = useState("");
   const [selectedContext, setSelectedContext] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const textareaRef = useRef(null);
+  const containerRef = useRef(null);
+
+  // Handle fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) return;
+    try {
+      if (!document.fullscreenElement) {
+        await containerRef.current.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (error) {
+      console.error("Error toggling fullscreen:", error);
+    }
+  };
 
   // Load content on mount or projectId change
   useEffect(() => {
@@ -337,7 +363,7 @@ export default function WritingArea({ projectId, token }) {
   );
 
   return (
-    <div className="flex flex-col h-full bg-black/20 backdrop-blur-sm rounded-xl border border-white/10 relative overflow-hidden">
+    <div ref={containerRef} className={`flex flex-col h-full bg-black/20 backdrop-blur-sm rounded-xl border border-white/10 relative overflow-hidden ${isFullscreen ? 'rounded-none' : ''}`}>
       {/* Toolbar */}
       <div className="flex items-center justify-between p-3 border-b border-white/10">
         <div className="flex gap-2">
@@ -434,6 +460,15 @@ export default function WritingArea({ projectId, token }) {
             title="Download"
           >
             <Download size={18} className="text-slate-300" />
+          </button>
+
+          {/* Fullscreen Toggle */}
+          <button
+            onClick={toggleFullscreen}
+            className="flex items-center justify-center w-8 h-8 bg-black/40 backdrop-blur-md rounded-full text-white/70 border border-white/5 hover:bg-white/10 hover:text-white transition-all duration-200"
+            title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          >
+            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
         </div>
       </div>

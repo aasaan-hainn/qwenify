@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Upload, Type, Scissors, Download, Play, Pause, Loader, Video } from "lucide-react";
+import { Upload, Type, Scissors, Download, Play, Pause, Loader, Video, Maximize2, Minimize2 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -21,6 +21,30 @@ export default function VideoEditor({ projectId }) {
 
     const videoRef = useRef(null);
     const fileInputRef = useRef(null);
+    const containerRef = useRef(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    // Handle fullscreen changes
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
+
+    const toggleFullscreen = async () => {
+        if (!containerRef.current) return;
+        try {
+            if (!document.fullscreenElement) {
+                await containerRef.current.requestFullscreen();
+            } else {
+                await document.exitFullscreen();
+            }
+        } catch (error) {
+            console.error("Error toggling fullscreen:", error);
+        }
+    };
 
     // Load project media on mount
     useEffect(() => {
@@ -162,7 +186,7 @@ export default function VideoEditor({ projectId }) {
     };
 
     return (
-        <div className="flex flex-col h-full bg-black/20 backdrop-blur-sm rounded-xl border border-white/10">
+        <div ref={containerRef} className={`flex flex-col h-full bg-black/20 backdrop-blur-sm rounded-xl border border-white/10 ${isFullscreen ? 'rounded-none' : ''}`}>
             {/* Toolbar */}
             <div className="flex items-center justify-between p-3 border-b border-white/10">
                 <div className="flex gap-2 items-center">
@@ -359,6 +383,15 @@ export default function VideoEditor({ projectId }) {
                         </div>
                     )}
                 </div>
+
+                {/* Fullscreen Toggle */}
+                <button
+                    onClick={toggleFullscreen}
+                    className="flex items-center justify-center w-8 h-8 bg-black/40 backdrop-blur-md rounded-full text-white/70 border border-white/5 hover:bg-white/10 hover:text-white transition-all duration-200"
+                    title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+                >
+                    {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                </button>
             </div>
         </div>
     );

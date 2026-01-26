@@ -367,23 +367,17 @@ export default function Canvas({ projectId, token }) {
                 </div>
             ) : (
                 <div className="flex-1 w-full h-full">
-                    <Excalidraw
-                        excalidrawAPI={(api) => setExcalidrawAPI(api)}
-                        initialData={initialData?.elements?.length > 0 ? initialData : undefined}
-                        onChange={handleChange}
-                        theme="dark"
-                        UIOptions={{
-                            canvasActions: {
-                                loadScene: false,
-                                saveToActiveFile: false,
-                            }
-                        }}
-                    >
+                    <Excalidraw>
                         <WelcomeScreen>
+                            <WelcomeScreen.Hints.ToolbarHint>
+                                <p> ToolBar Hints </p>
+                            </WelcomeScreen.Hints.ToolbarHint>
+                            <WelcomeScreen.Hints.MenuHint />
+                            <WelcomeScreen.Hints.HelpHint />
                             <WelcomeScreen.Center>
                                 <WelcomeScreen.Center.Logo />
                                 <WelcomeScreen.Center.Heading>
-                                    Welcome to Qwenify Canvas!
+                                    Welcome to creAItr. X Excalidraw Canvas!
                                 </WelcomeScreen.Center.Heading>
                                 <WelcomeScreen.Center.Menu>
                                     <WelcomeScreen.Center.MenuItemHelp />
