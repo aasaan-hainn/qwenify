@@ -6,6 +6,7 @@ load_dotenv()
 # API Keys
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # URLs & Endpoints
 NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL")
