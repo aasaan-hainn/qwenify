@@ -1,8 +1,13 @@
 import json
 import datetime
+import os
+import time
+import tempfile
+import requests
 from flask import Flask, request, Response, stream_with_context, send_file, jsonify
 from flask_cors import CORS
 from openai import OpenAI
+from google import genai
 from bson import ObjectId
 
 import config
@@ -11,10 +16,21 @@ from mongodb import projects_collection, users_collection, chats_collection
 from news_ingest import fetch_and_store_news, fetch_newsapi_data, clear_existing_news
 from pdf_ingest import ingest_local_pdfs
 from tts import generate_tts_audio
-from auth import hash_password, verify_password, generate_token, verify_token, token_required, verify_google_token
+from auth import (
+    hash_password,
+    verify_password,
+    generate_token,
+    verify_token,
+    token_required,
+    verify_google_token,
+)
 from youtube_stats import (
-    get_channel_stats, save_stats_snapshot, should_update_snapshot,
-    calculate_growth, generate_growth_graph, get_stats_history
+    get_channel_stats,
+    save_stats_snapshot,
+    should_update_snapshot,
+    calculate_growth,
+    generate_growth_graph,
+    get_stats_history,
 )
 
 # --- SERVER SETUP ---
@@ -24,96 +40,104 @@ CORS(app)
 print("Initializing NVIDIA Client...")
 nvidia_client = OpenAI(base_url=config.NVIDIA_BASE_URL, api_key=config.NVIDIA_API_KEY)
 
+print("Initializing Gemini Client...")
+try:
+    genai_client = genai.Client(api_key=config.GEMINI_API_KEY)
+except Exception as e:
+    print(f"Warning: Gemini Client failed to initialize: {e}")
+    genai_client = None
+
 
 # --- API ROUTES ---
 
 
 # --- AUTHENTICATION ROUTES ---
 
+
 @app.route("/auth/register", methods=["POST"])
 def register():
     """Register a new user"""
     data = request.json
-    
+
     email = data.get("email", "").strip().lower()
     password = data.get("password", "")
     confirm_password = data.get("confirmPassword", "")
     social_accounts = data.get("socialAccounts", [])  # Array of {platform, handle}
-    
+
     # Validation
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
-    
+
     if password != confirm_password:
         return jsonify({"error": "Passwords do not match"}), 400
-    
+
     if len(password) < 6:
         return jsonify({"error": "Password must be at least 6 characters"}), 400
-    
+
     # Check if user already exists
     existing_user = users_collection.find_one({"email": email})
     if existing_user:
         return jsonify({"error": "Email already exists"}), 409
-    
+
     # Create user
     hashed_password = hash_password(password)
     user = {
         "email": email,
         "password": hashed_password,
         "socialAccounts": social_accounts,  # Store as array
-        "createdAt": datetime.datetime.now().isoformat()
+        "createdAt": datetime.datetime.now().isoformat(),
     }
-    
+
     result = users_collection.insert_one(user)
     user_id = str(result.inserted_id)
-    
+
     # Generate token
     token = generate_token(user_id, email)
-    
-    return jsonify({
-        "message": "User registered successfully",
-        "token": token,
-        "user": {
-            "id": user_id,
-            "email": email,
-            "socialAccounts": social_accounts
+
+    return jsonify(
+        {
+            "message": "User registered successfully",
+            "token": token,
+            "user": {"id": user_id, "email": email, "socialAccounts": social_accounts},
         }
-    }), 201
+    ), 201
 
 
 @app.route("/auth/login", methods=["POST"])
 def login():
     """Login user and return JWT token"""
     data = request.json
-    
+
     email = data.get("email", "").strip().lower()
     password = data.get("password", "")
-    
+
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
-    
+
     # Find user
     user = users_collection.find_one({"email": email})
     if not user:
         return jsonify({"error": "Invalid email or password"}), 401
-    
+
     # Verify password
     if not verify_password(password, user["password"]):
         return jsonify({"error": "Invalid email or password"}), 401
-    
+
     # Generate token
     user_id = str(user["_id"])
     token = generate_token(user_id, email)
-    
-    return jsonify({
-        "message": "Login successful",
-        "token": token,
-        "user": {
-            "id": user_id,
-            "email": user["email"],
-            "socialAccounts": user.get("socialAccounts", [])
+
+    return jsonify(
+        {
+            "message": "Login successful",
+            "token": token,
+            "user": {
+                "id": user_id,
+                "email": user["email"],
+                "socialAccounts": user.get("socialAccounts", []),
+            },
         }
-    })
+    )
 
 
 @app.route("/auth/google", methods=["POST"])
@@ -121,19 +145,19 @@ def google_login():
     """Login or register with Google"""
     data = request.json
     token = data.get("token")
-    
+
     if not token:
         return jsonify({"error": "Token is required"}), 400
-        
+
     id_info = verify_google_token(token)
     if not id_info:
         return jsonify({"error": "Invalid Google token"}), 401
-        
+
     email = id_info.get("email").lower()
-    
+
     # Check if user exists
     user = users_collection.find_one({"email": email})
-    
+
     if not user:
         # Create new user
         user = {
@@ -143,7 +167,7 @@ def google_login():
             "createdAt": datetime.datetime.now().isoformat(),
             "googleId": id_info.get("id"),
             "name": id_info.get("name"),
-            "picture": id_info.get("picture")
+            "picture": id_info.get("picture"),
         }
         result = users_collection.insert_one(user)
         user_id = str(result.inserted_id)
@@ -153,59 +177,65 @@ def google_login():
         if "googleId" not in user:
             users_collection.update_one(
                 {"_id": user["_id"]},
-                {"$set": {
-                    "googleId": id_info.get("id"),
-                    "name": user.get("name") or id_info.get("name"),
-                    "picture": user.get("picture") or id_info.get("picture")
-                }}
+                {
+                    "$set": {
+                        "googleId": id_info.get("id"),
+                        "name": user.get("name") or id_info.get("name"),
+                        "picture": user.get("picture") or id_info.get("picture"),
+                    }
+                },
             )
-            
+
     # Generate JWT
     jwt_token = generate_token(user_id, email)
-    
-    return jsonify({
-        "message": "Login successful",
-        "token": jwt_token,
-        "user": {
-            "id": user_id,
-            "email": email,
-            "socialAccounts": user.get("socialAccounts", []),
-            "name": user.get("name") or id_info.get("name"),
-            "picture": user.get("picture") or id_info.get("picture")
+
+    return jsonify(
+        {
+            "message": "Login successful",
+            "token": jwt_token,
+            "user": {
+                "id": user_id,
+                "email": email,
+                "socialAccounts": user.get("socialAccounts", []),
+                "name": user.get("name") or id_info.get("name"),
+                "picture": user.get("picture") or id_info.get("picture"),
+            },
         }
-    })
+    )
 
 
 @app.route("/auth/verify", methods=["GET"])
 def verify_auth():
     """Verify JWT token and return user data"""
     token = None
-    
-    if 'Authorization' in request.headers:
-        auth_header = request.headers['Authorization']
-        if auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-    
+
+    if "Authorization" in request.headers:
+        auth_header = request.headers["Authorization"]
+        if auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+
     if not token:
         return jsonify({"valid": False, "error": "No token provided"}), 401
-    
+
     payload = verify_token(token)
     if not payload:
         return jsonify({"valid": False, "error": "Invalid or expired token"}), 401
-    
+
     # Get user from database
     user = users_collection.find_one({"_id": ObjectId(payload["user_id"])})
     if not user:
         return jsonify({"valid": False, "error": "User not found"}), 404
-    
-    return jsonify({
-        "valid": True,
-        "user": {
-            "id": str(user["_id"]),
-            "email": user["email"],
-            "socialAccounts": user.get("socialAccounts", [])
+
+    return jsonify(
+        {
+            "valid": True,
+            "user": {
+                "id": str(user["_id"]),
+                "email": user["email"],
+                "socialAccounts": user.get("socialAccounts", []),
+            },
         }
-    })
+    )
 
 
 @app.route("/auth/me", methods=["GET"])
@@ -215,16 +245,19 @@ def get_current_user():
     user = users_collection.find_one({"_id": ObjectId(request.user_id)})
     if not user:
         return jsonify({"error": "User not found"}), 404
-    
-    return jsonify({
-        "id": str(user["_id"]),
-        "email": user["email"],
-        "socialAccounts": user.get("socialAccounts", []),
-        "createdAt": user.get("createdAt", "")
-    })
+
+    return jsonify(
+        {
+            "id": str(user["_id"]),
+            "email": user["email"],
+            "socialAccounts": user.get("socialAccounts", []),
+            "createdAt": user.get("createdAt", ""),
+        }
+    )
 
 
 # --- YOUTUBE STATS ROUTES ---
+
 
 @app.route("/analytics", methods=["GET"])
 @token_required
@@ -233,40 +266,48 @@ def get_analytics():
     Get real YouTube Analytics data from database snapshots.
     """
     from mongodb import channel_stats_collection
-    
+
     # Fetch snapshots for this user
-    snapshots = list(channel_stats_collection.find(
-        {"userId": request.user_id}
-    ).sort("recordedAt", 1))
-    
+    snapshots = list(
+        channel_stats_collection.find({"userId": request.user_id}).sort("recordedAt", 1)
+    )
+
     if not snapshots:
-        return jsonify({"columns": ["day", "views", "watchTimeMinutes", "subscribersGained"], "rows": []})
-    
+        return jsonify(
+            {
+                "columns": ["day", "views", "watchTimeMinutes", "subscribersGained"],
+                "rows": [],
+            }
+        )
+
     rows = []
     for i in range(len(snapshots)):
         s = snapshots[i]
         day_str = s["recordedAt"].date().isoformat()
-        
+
         current_views = s.get("views", 0)
         current_subs = s.get("subscribers", 0)
-        
+
         # Calculate daily gain if not the first snapshot
         if i > 0:
-            prev = snapshots[i-1]
+            prev = snapshots[i - 1]
             daily_views = max(0, current_views - prev.get("views", 0))
             daily_subs = current_subs - prev.get("subscribers", 0)
         else:
             daily_views = 0
             daily_subs = 0
-            
+
         # Note: Watch time is not tracked in basic snapshots, setting to 0 or estimated
         # Using 0 for accuracy as requested "real data"
         rows.append([day_str, daily_views, 0, daily_subs])
 
-    return jsonify({
-        "columns": ["day", "views", "watchTimeMinutes", "subscribersGained"],
-        "rows": rows
-    })
+    return jsonify(
+        {
+            "columns": ["day", "views", "watchTimeMinutes", "subscribersGained"],
+            "rows": rows,
+        }
+    )
+
 
 @app.route("/stats/youtube/channel", methods=["GET"])
 @token_required
@@ -275,11 +316,15 @@ def get_youtube_channel():
     user = users_collection.find_one({"_id": ObjectId(request.user_id)})
     if not user:
         return jsonify({"error": "User not found"}), 404
-    
-    return jsonify({
-        "channelId": user.get("youtubeChannelId", ""),
-        "lastStatsUpdate": user.get("lastStatsUpdate", "").isoformat() if user.get("lastStatsUpdate") else None
-    })
+
+    return jsonify(
+        {
+            "channelId": user.get("youtubeChannelId", ""),
+            "lastStatsUpdate": user.get("lastStatsUpdate", "").isoformat()
+            if user.get("lastStatsUpdate")
+            else None,
+        }
+    )
 
 
 @app.route("/stats/youtube/channel", methods=["POST"])
@@ -288,29 +333,30 @@ def save_youtube_channel():
     """Save YouTube channel ID to user profile and take initial snapshot"""
     data = request.json
     channel_id = data.get("channelId", "").strip()
-    
+
     if not channel_id:
         return jsonify({"error": "Channel ID is required"}), 400
-    
+
     # Verify channel exists by fetching stats
     stats = get_channel_stats(channel_id)
     if not stats:
         return jsonify({"error": "Invalid channel ID or channel not found"}), 404
-    
+
     # Save channel ID to user
     users_collection.update_one(
-        {"_id": ObjectId(request.user_id)},
-        {"$set": {"youtubeChannelId": channel_id}}
+        {"_id": ObjectId(request.user_id)}, {"$set": {"youtubeChannelId": channel_id}}
     )
-    
+
     # Take initial snapshot for new channel
     save_stats_snapshot(request.user_id, stats)
-    
-    return jsonify({
-        "message": "Channel saved successfully",
-        "channelId": channel_id,
-        "stats": stats
-    })
+
+    return jsonify(
+        {
+            "message": "Channel saved successfully",
+            "channelId": channel_id,
+            "stats": stats,
+        }
+    )
 
 
 @app.route("/stats/youtube/realtime", methods=["GET"])
@@ -320,19 +366,19 @@ def get_realtime_stats():
     user = users_collection.find_one({"_id": ObjectId(request.user_id)})
     if not user:
         return jsonify({"error": "User not found"}), 404
-    
+
     channel_id = user.get("youtubeChannelId")
     if not channel_id:
         return jsonify({"error": "No YouTube channel configured"}), 400
-    
+
     stats = get_channel_stats(channel_id)
     if not stats:
         return jsonify({"error": "Failed to fetch channel stats"}), 500
-    
+
     # Check if we should save a new 30-day snapshot
     if should_update_snapshot(request.user_id):
         save_stats_snapshot(request.user_id, stats)
-    
+
     return jsonify(stats)
 
 
@@ -343,19 +389,19 @@ def get_growth_stats():
     user = users_collection.find_one({"_id": ObjectId(request.user_id)})
     if not user:
         return jsonify({"error": "User not found"}), 404
-    
+
     channel_id = user.get("youtubeChannelId")
     if not channel_id:
         return jsonify({"error": "No YouTube channel configured"}), 400
-    
+
     # Get current stats
     current_stats = get_channel_stats(channel_id)
     if not current_stats:
         return jsonify({"error": "Failed to fetch channel stats"}), 500
-    
+
     # Calculate growth
     growth = calculate_growth(request.user_id, current_stats)
-    
+
     return jsonify(growth)
 
 
@@ -366,15 +412,17 @@ def get_growth_graph():
     user = users_collection.find_one({"_id": ObjectId(request.user_id)})
     if not user:
         return jsonify({"error": "User not found"}), 404
-    
+
     if not user.get("youtubeChannelId"):
         return jsonify({"error": "No YouTube channel configured"}), 400
-    
+
     graph_data = generate_growth_graph(request.user_id)
-    
+
     if not graph_data:
-        return jsonify({"error": "Not enough data for graph (need at least 2 snapshots)"}), 400
-    
+        return jsonify(
+            {"error": "Not enough data for graph (need at least 2 snapshots)"}
+        ), 400
+
     return jsonify({"graph": graph_data})
 
 
@@ -383,12 +431,12 @@ def get_growth_graph():
 def get_stats_history_route():
     """Get historical stats snapshots"""
     history = get_stats_history(request.user_id, limit=12)
-    
+
     # Convert datetime objects to ISO strings
     for item in history:
-        if 'recordedAt' in item:
-            item['recordedAt'] = item['recordedAt'].isoformat()
-    
+        if "recordedAt" in item:
+            item["recordedAt"] = item["recordedAt"].isoformat()
+
     return jsonify({"history": history})
 
 
@@ -499,10 +547,10 @@ def generate_drawing():
     """Generate Mermaid diagram from natural language prompt"""
     data = request.json
     prompt = data.get("prompt", "")
-    
+
     if not prompt:
         return jsonify({"error": "Prompt is required"}), 400
-    
+
     system_prompt = """You are a diagram generation assistant. Your ONLY job is to convert user descriptions into valid Mermaid diagram syntax.
 
 CRITICAL RULES:
@@ -537,30 +585,32 @@ Remember: Output ONLY the Mermaid code, nothing else. Do NOT include any thinkin
             model=config.MODEL_NAME,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Create a diagram for: {prompt}"}
+                {"role": "user", "content": f"Create a diagram for: {prompt}"},
             ],
             temperature=0.3,
             top_p=0.9,
             max_tokens=1024,
             stream=False,
         )
-        
+
         # Handle thinking models that may have None content
         message = completion.choices[0].message
         mermaid_code = message.content
-        
+
         # If content is None, check for reasoning_content or other attributes
         if mermaid_code is None:
             # Try to get reasoning content for thinking models
-            reasoning = getattr(message, 'reasoning_content', None)
+            reasoning = getattr(message, "reasoning_content", None)
             if reasoning:
                 # Extract mermaid code from reasoning if present
                 mermaid_code = reasoning
             else:
-                return jsonify({"error": "AI returned empty response. Please try again."}), 500
-        
+                return jsonify(
+                    {"error": "AI returned empty response. Please try again."}
+                ), 500
+
         mermaid_code = mermaid_code.strip()
-        
+
         # Clean up any markdown code blocks if present
         if mermaid_code.startswith("```"):
             lines = mermaid_code.split("\n")
@@ -570,14 +620,27 @@ Remember: Output ONLY the Mermaid code, nothing else. Do NOT include any thinkin
             if lines and lines[-1].strip() == "```":
                 lines = lines[:-1]
             mermaid_code = "\n".join(lines)
-        
+
         # Validate that we have something that looks like Mermaid code
-        valid_starts = ['flowchart', 'sequenceDiagram', 'classDiagram', 'stateDiagram', 'erDiagram', 'pie', 'gantt', 'graph']
+        valid_starts = [
+            "flowchart",
+            "sequenceDiagram",
+            "classDiagram",
+            "stateDiagram",
+            "erDiagram",
+            "pie",
+            "gantt",
+            "graph",
+        ]
         if not any(mermaid_code.strip().startswith(start) for start in valid_starts):
-            return jsonify({"error": "AI did not generate valid Mermaid diagram. Please try a different prompt."}), 500
-        
+            return jsonify(
+                {
+                    "error": "AI did not generate valid Mermaid diagram. Please try a different prompt."
+                }
+            ), 500
+
         return jsonify({"mermaid": mermaid_code})
-        
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -589,10 +652,10 @@ def generate_writing():
     prompt = data.get("prompt", "")
     selected_text = data.get("selectedText", "")
     full_text = data.get("fullText", "")
-    
+
     if not prompt:
         return jsonify({"error": "Prompt is required"}), 400
-    
+
     # Base system instruction
     system_instruction = """You are an expert writing assistant. Your task is to generate or edit text based on the user's instructions.
 
@@ -608,12 +671,12 @@ CRITICAL RULES:
         # Editing a specific selection
         system_instruction += "\n4. You are editing a specific SELECTION of text. Return ONLY the replacement for that selection. Maintain surrounding context implied by the instruction."
         user_content += f"\n\nContext/Selection to Edit:\n{selected_text}"
-    
+
     elif full_text:
         # Editing the whole document
         system_instruction += "\n4. You are acting on the FULL DOCUMENT. You must return the COMPLETE updated document. Do not summarize or omit parts unless explicitly asked. If the user asks to add something, output the original text + the addition."
         user_content += f"\n\nFull Document Content:\n{full_text}"
-    
+
     else:
         # Generating from scratch
         system_instruction += "\n4. Generate new text based on the instruction."
@@ -623,39 +686,113 @@ CRITICAL RULES:
             model=config.MODEL_NAME,
             messages=[
                 {"role": "system", "content": system_instruction},
-                {"role": "user", "content": user_content}
+                {"role": "user", "content": user_content},
             ],
             temperature=0.7,
             top_p=0.9,
             max_tokens=4096,  # Increased for full document handling
             stream=False,
         )
-        
+
         # Handle thinking models
         message = completion.choices[0].message
         generated_text = message.content
-        
+
         if generated_text is None:
-             reasoning = getattr(message, 'reasoning_content', None)
-             if reasoning:
-                 generated_text = reasoning
-             else:
-                 return jsonify({"error": "AI returned empty response"}), 500
+            reasoning = getattr(message, "reasoning_content", None)
+            if reasoning:
+                generated_text = reasoning
+            else:
+                return jsonify({"error": "AI returned empty response"}), 500
 
         return jsonify({"text": generated_text.strip()})
-        
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/analyze-media", methods=["POST"])
+@token_required
+def analyze_media():
+    """Analyze image or video using Gemini API"""
+    data = request.json
+    media_url = data.get("mediaUrl")
+    media_type = data.get("mediaType", "image")  # "image" or "video"
+    prompt = data.get("prompt", "Describe this media in detail.")
+
+    if not media_url:
+        return jsonify({"error": "Media URL is required"}), 400
+
+    if not config.GEMINI_API_KEY:
+        return jsonify({"error": "Gemini API key not configured"}), 500
+
+    if not genai_client:
+        return jsonify(
+            {"error": "Gemini Client not initialized. Please check your API key."}
+        ), 500
+
+    temp_file_path = None
+    uploaded_file = None
+
+    try:
+        # 1. Download media to temp file
+        response = requests.get(media_url)
+        if response.status_code != 200:
+            return jsonify({"error": "Failed to download media from URL"}), 400
+
+        suffix = ".mp4" if media_type == "video" else ".jpg"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(response.content)
+            temp_file_path = tmp.name
+
+        # 2. Upload to Gemini
+        uploaded_file = genai_client.files.upload(file=temp_file_path)
+
+        # 3. Wait if video
+        if media_type == "video":
+            while True:
+                file_obj = genai_client.files.get(name=uploaded_file.name)
+                if "ACTIVE" in str(file_obj.state):
+                    break
+                elif "FAILED" in str(file_obj.state):
+                    raise Exception("Gemini video processing failed")
+                time.sleep(5)
+
+        # 4. Generate content
+        analysis_response = genai_client.models.generate_content(
+            model="gemini-3-flash-preview", contents=[uploaded_file, prompt]
+        )
+
+        return jsonify({"analysis": analysis_response.text})
+
+    except Exception as e:
+        print(f"Error in analyze_media: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        # 5. Cleanup
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.remove(temp_file_path)
+            except:
+                pass
+        if uploaded_file:
+            try:
+                genai_client.files.delete(name=uploaded_file.name)
+            except:
+                pass
+
 
 # --- PROJECT ROUTES ---
+
 
 @app.route("/projects", methods=["GET"])
 @token_required
 def get_projects():
     """Get all projects for the logged-in user"""
-    projects = list(projects_collection.find({"userId": request.user_id}).sort("created", -1))
+    projects = list(
+        projects_collection.find({"userId": request.user_id}).sort("created", -1)
+    )
     # Convert ObjectId to string for JSON serialization
     for project in projects:
         project["_id"] = str(project["_id"])
@@ -668,16 +805,16 @@ def create_project():
     """Create a new project for the logged-in user"""
     data = request.json
     name = data.get("name", "Untitled Project")
-    
+
     project = {
         "name": name,
         "userId": request.user_id,
-        "created": datetime.datetime.now().isoformat()
+        "created": datetime.datetime.now().isoformat(),
     }
-    
+
     result = projects_collection.insert_one(project)
     project["_id"] = str(result.inserted_id)
-    
+
     return jsonify(project), 201
 
 
@@ -686,22 +823,23 @@ def create_project():
 def update_project(project_id):
     """Update a project (only if owned by user)"""
     data = request.json
-    
+
     # Check ownership
-    project = projects_collection.find_one({"_id": ObjectId(project_id), "userId": request.user_id})
+    project = projects_collection.find_one(
+        {"_id": ObjectId(project_id), "userId": request.user_id}
+    )
     if not project:
         return jsonify({"error": "Project not found or access denied"}), 404
-    
+
     update_data = {}
     if "name" in data:
         update_data["name"] = data["name"]
-    
+
     if update_data:
         projects_collection.update_one(
-            {"_id": ObjectId(project_id)},
-            {"$set": update_data}
+            {"_id": ObjectId(project_id)}, {"$set": update_data}
         )
-    
+
     project = projects_collection.find_one({"_id": ObjectId(project_id)})
     project["_id"] = str(project["_id"])
     return jsonify(project)
@@ -711,15 +849,18 @@ def update_project(project_id):
 @token_required
 def delete_project(project_id):
     """Delete a project (only if owned by user)"""
-    result = projects_collection.delete_one({"_id": ObjectId(project_id), "userId": request.user_id})
-    
+    result = projects_collection.delete_one(
+        {"_id": ObjectId(project_id), "userId": request.user_id}
+    )
+
     if result.deleted_count > 0:
         return jsonify({"status": "deleted"})
-    
+
     return jsonify({"error": "Project not found or access denied"}), 404
 
 
 # --- WORKSPACE ROUTES ---
+
 
 @app.route("/projects/<project_id>/workspace/canvas", methods=["GET"])
 def get_canvas(project_id):
@@ -736,10 +877,9 @@ def save_canvas(project_id):
     """Save canvas data for a project"""
     data = request.json
     canvas_data = data.get("canvas", "")
-    
+
     projects_collection.update_one(
-        {"_id": ObjectId(project_id)},
-        {"$set": {"workspace.canvas": canvas_data}}
+        {"_id": ObjectId(project_id)}, {"$set": {"workspace.canvas": canvas_data}}
     )
     return jsonify({"status": "saved"})
 
@@ -759,10 +899,9 @@ def save_writing(project_id):
     """Save writing content for a project"""
     data = request.json
     writing_content = data.get("writing", "")
-    
+
     projects_collection.update_one(
-        {"_id": ObjectId(project_id)},
-        {"$set": {"workspace.writing": writing_content}}
+        {"_id": ObjectId(project_id)}, {"$set": {"workspace.writing": writing_content}}
     )
     return jsonify({"status": "saved"})
 
@@ -785,12 +924,11 @@ def add_chat_message(project_id):
         "role": data.get("role"),
         "content": data.get("content"),
         "thought": data.get("thought", ""),
-        "timestamp": datetime.datetime.now().isoformat()
+        "timestamp": datetime.datetime.now().isoformat(),
     }
-    
+
     projects_collection.update_one(
-        {"_id": ObjectId(project_id)},
-        {"$push": {"workspace.chatHistory": message}}
+        {"_id": ObjectId(project_id)}, {"$push": {"workspace.chatHistory": message}}
     )
     return jsonify({"status": "added", "message": message})
 
@@ -799,42 +937,41 @@ def add_chat_message(project_id):
 def upload_media(project_id):
     """Upload media to Cloudinary and save reference"""
     from cloudinary_config import upload_image, upload_video
-    
+
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
-    
+
     file = request.files["file"]
     media_type = request.form.get("type", "image")
-    
+
     # Check file size
     file.seek(0, 2)  # Seek to end
     file_size = file.tell()
     file.seek(0)  # Reset to beginning
-    
+
     max_size = 100 * 1024 * 1024 if media_type == "video" else 10 * 1024 * 1024
     if file_size > max_size:
         limit = "100MB" if media_type == "video" else "10MB"
         return jsonify({"error": f"File too large. Max size is {limit}"}), 400
-    
+
     try:
         if media_type == "video":
             result = upload_video(file, folder=f"qwenify/{project_id}/videos")
         else:
             result = upload_image(file, folder=f"qwenify/{project_id}/images")
-        
+
         media_entry = {
             "type": media_type,
             "url": result["url"],
             "publicId": result["public_id"],
             "name": file.filename,
-            "uploadedAt": datetime.datetime.now().isoformat()
+            "uploadedAt": datetime.datetime.now().isoformat(),
         }
-        
+
         projects_collection.update_one(
-            {"_id": ObjectId(project_id)},
-            {"$push": {"workspace.media": media_entry}}
+            {"_id": ObjectId(project_id)}, {"$push": {"workspace.media": media_entry}}
         )
-        
+
         return jsonify(media_entry), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -852,11 +989,14 @@ def get_media(project_id):
 
 # --- STANDALONE CHAT ROUTES ---
 
+
 @app.route("/chats", methods=["GET"])
 @token_required
 def get_recent_chats():
     """Get all standalone chat sessions for the user"""
-    chats = list(chats_collection.find({"userId": request.user_id}).sort("updatedAt", -1))
+    chats = list(
+        chats_collection.find({"userId": request.user_id}).sort("updatedAt", -1)
+    )
     for chat in chats:
         chat["_id"] = str(chat["_id"])
     return jsonify(chats)
@@ -868,18 +1008,18 @@ def create_chat_session():
     """Create a new standalone chat session"""
     data = request.json
     title = data.get("title", "New Chat")
-    
+
     chat_session = {
         "userId": request.user_id,
         "title": title,
         "messages": [],
         "createdAt": datetime.datetime.now().isoformat(),
-        "updatedAt": datetime.datetime.now().isoformat()
+        "updatedAt": datetime.datetime.now().isoformat(),
     }
-    
+
     result = chats_collection.insert_one(chat_session)
     chat_session["_id"] = str(result.inserted_id)
-    
+
     return jsonify(chat_session), 201
 
 
@@ -887,10 +1027,12 @@ def create_chat_session():
 @token_required
 def get_chat_session(chat_id):
     """Get a specific chat session (if owned by user)"""
-    chat = chats_collection.find_one({"_id": ObjectId(chat_id), "userId": request.user_id})
+    chat = chats_collection.find_one(
+        {"_id": ObjectId(chat_id), "userId": request.user_id}
+    )
     if not chat:
         return jsonify({"error": "Chat session not found"}), 404
-    
+
     chat["_id"] = str(chat["_id"])
     return jsonify(chat)
 
@@ -904,23 +1046,29 @@ def add_chat_session_message(chat_id):
         "role": data.get("role"),
         "content": data.get("content"),
         "thought": data.get("thought", ""),
-        "timestamp": datetime.datetime.now().isoformat()
+        "timestamp": datetime.datetime.now().isoformat(),
     }
-    
+
     # Update title if it's the first user message
-    update_query = {"$push": {"messages": message}, "$set": {"updatedAt": datetime.datetime.now().isoformat()}}
-    
-    chat = chats_collection.find_one({"_id": ObjectId(chat_id), "userId": request.user_id})
+    update_query = {
+        "$push": {"messages": message},
+        "$set": {"updatedAt": datetime.datetime.now().isoformat()},
+    }
+
+    chat = chats_collection.find_one(
+        {"_id": ObjectId(chat_id), "userId": request.user_id}
+    )
     if chat and len(chat.get("messages", [])) == 0 and message["role"] == "user":
         # Simple title generation from first message
-        title = message["content"][:40] + ("..." if len(message["content"]) > 40 else "")
+        title = message["content"][:40] + (
+            "..." if len(message["content"]) > 40 else ""
+        )
         update_query["$set"]["title"] = title
 
     chats_collection.update_one(
-        {"_id": ObjectId(chat_id), "userId": request.user_id},
-        update_query
+        {"_id": ObjectId(chat_id), "userId": request.user_id}, update_query
     )
-    
+
     return jsonify({"status": "added", "message": message})
 
 
@@ -928,11 +1076,13 @@ def add_chat_session_message(chat_id):
 @token_required
 def delete_chat_session(chat_id):
     """Delete a chat session"""
-    result = chats_collection.delete_one({"_id": ObjectId(chat_id), "userId": request.user_id})
-    
+    result = chats_collection.delete_one(
+        {"_id": ObjectId(chat_id), "userId": request.user_id}
+    )
+
     if result.deleted_count > 0:
         return jsonify({"status": "deleted"})
-    
+
     return jsonify({"error": "Chat session not found"}), 404
 
 
@@ -942,21 +1092,20 @@ def rename_chat_session(chat_id):
     """Rename a chat session"""
     data = request.json
     title = data.get("title")
-    
+
     if not title:
         return jsonify({"error": "Title is required"}), 400
-        
+
     result = chats_collection.update_one(
         {"_id": ObjectId(chat_id), "userId": request.user_id},
-        {"$set": {"title": title, "updatedAt": datetime.datetime.now().isoformat()}}
+        {"$set": {"title": title, "updatedAt": datetime.datetime.now().isoformat()}},
     )
-    
+
     if result.modified_count > 0:
         return jsonify({"status": "renamed", "title": title})
-    
+
     return jsonify({"error": "Chat session not found or access denied"}), 404
 
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=config.PORT, debug=True)
-

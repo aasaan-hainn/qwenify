@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { Upload, Download, RotateCw, Loader, Image as ImageIcon, Maximize2, Minimize2 } from "lucide-react";
+import { Upload, Download, RotateCw, Loader, Image as ImageIcon, Maximize2, Minimize2, Wand2, X, Send, Sparkles } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-export default function PhotoEditor({ projectId }) {
+export default function PhotoEditor({ projectId, token }) {
     const [image, setImage] = useState(null);
     const [brightness, setBrightness] = useState(100);
     const [contrast, setContrast] = useState(100);
@@ -12,6 +12,15 @@ export default function PhotoEditor({ projectId }) {
     const [projectImages, setProjectImages] = useState([]);
     const [loadingMedia, setLoadingMedia] = useState(true);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [currentImageUrl, setCurrentImageUrl] = useState(null);
+
+    // AI Analysis states
+    const [isAISidebarOpen, setIsAISidebarOpen] = useState(false);
+    const [aiPrompt, setAiPrompt] = useState("");
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [aiAnalysis, setAiAnalysis] = useState("");
+    const [aiError, setAiError] = useState("");
+
     const canvasRef = useRef(null);
     const fileInputRef = useRef(null);
     const containerRef = useRef(null);
@@ -111,6 +120,7 @@ export default function PhotoEditor({ projectId }) {
             if (response.ok) {
                 const data = await response.json();
                 setProjectImages([...projectImages, data]);
+                setCurrentImageUrl(data.url);
             } else {
                 const error = await response.json();
                 alert(error.error || "Upload failed");
@@ -123,6 +133,7 @@ export default function PhotoEditor({ projectId }) {
     };
 
     const loadFromProject = (url) => {
+        setCurrentImageUrl(url);
         const img = new Image();
         img.crossOrigin = "anonymous";
         img.onload = () => {
@@ -151,6 +162,39 @@ export default function PhotoEditor({ projectId }) {
         link.href = url;
         link.download = "edited-photo.png";
         link.click();
+    };
+
+    const analyzeImage = async () => {
+        if (!aiPrompt.trim() || !currentImageUrl) return;
+
+        setIsAnalyzing(true);
+        setAiError("");
+        setAiAnalysis("");
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/analyze-media`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    mediaUrl: currentImageUrl,
+                    mediaType: "image",
+                    prompt: aiPrompt
+                })
+            });
+
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
+
+            setAiAnalysis(data.analysis);
+        } catch (error) {
+            console.error("Error analyzing image:", error);
+            setAiError(error.message || "Failed to analyze image.");
+        } finally {
+            setIsAnalyzing(false);
+        }
     };
 
     const resetFilters = () => {
@@ -184,6 +228,13 @@ export default function PhotoEditor({ projectId }) {
 
                 {image && (
                     <div className="flex gap-2">
+                        <button
+                            onClick={() => setIsAISidebarOpen(true)}
+                            className="flex items-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors"
+                        >
+                            <Wand2 size={18} />
+                            <span className="text-sm">Ask AI</span>
+                        </button>
                         <button
                             onClick={resetFilters}
                             className="p-2 hover:bg-white/10 rounded-lg transition-colors"
@@ -299,6 +350,113 @@ export default function PhotoEditor({ projectId }) {
                                 ))}
                             </div>
                         )}
+                    </div>
+                </div>
+            </div>
+
+            {/* AI Sidebar */}
+            <div
+                className={`absolute top-0 right-0 h-full w-80 bg-slate-900/95 backdrop-blur-xl border-l border-white/10 z-20 transform transition-transform duration-300 ease-out ${isAISidebarOpen ? 'translate-x-0' : 'translate-x-full'
+                    }`}
+            >
+                {/* Sidebar Header */}
+                <div className="flex items-center justify-between p-4 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-gradient-to-r from-violet-600 to-purple-600 rounded-lg">
+                            <Wand2 size={16} className="text-white" />
+                        </div>
+                        <span className="font-semibold text-white">Ask Gemini AI</span>
+                    </div>
+                    <button
+                        onClick={() => setIsAISidebarOpen(false)}
+                        className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                        <X size={18} />
+                    </button>
+                </div>
+
+                {/* Sidebar Content */}
+                <div className="p-4 flex flex-col h-[calc(100%-60px)] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                    <p className="text-slate-400 text-sm mb-4">
+                        Ask anything about your image. Gemini can describe it, suggest edits, or explain contents.
+                    </p>
+
+                    {/* Prompt Input */}
+                    <div className="relative mb-4">
+                        <textarea
+                            value={aiPrompt}
+                            onChange={(e) => setAiPrompt(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    analyzeImage();
+                                }
+                            }}
+                            placeholder="e.g., How can I improve the lighting in this photo?"
+                            className="w-full h-28 p-3 bg-slate-800/50 border border-white/10 rounded-xl text-white placeholder-slate-500 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50"
+                            disabled={isAnalyzing}
+                        />
+                    </div>
+
+                    {/* Error Message */}
+                    {aiError && (
+                        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs">
+                            {aiError}
+                        </div>
+                    )}
+
+                    {/* Generate Button */}
+                    <button
+                        onClick={analyzeImage}
+                        disabled={!aiPrompt.trim() || isAnalyzing || !currentImageUrl}
+                        className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 disabled:from-slate-700 disabled:to-slate-700 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-all shadow-lg shadow-purple-500/20 disabled:shadow-none"
+                    >
+                        {isAnalyzing ? (
+                            <>
+                                <Loader size={18} className="animate-spin" />
+                                <span>Analyzing...</span>
+                            </>
+                        ) : (
+                            <>
+                                <Send size={18} />
+                                <span>Ask AI</span>
+                            </>
+                        )}
+                    </button>
+
+                    {/* AI Analysis Result */}
+                    {aiAnalysis && (
+                        <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
+                            <h4 className="text-xs font-medium text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <Sparkles size={12} />
+                                Gemini Analysis
+                            </h4>
+                            <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
+                                {aiAnalysis}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Example Prompts */}
+                    <div className="mt-6">
+                        <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Try these</p>
+                        <div className="space-y-2">
+                            {[
+                                "Describe this image in detail",
+                                "How to enhance the colors?",
+                                "What is the mood of this photo?",
+                                "Identify objects in this image"
+                            ].map((prompt, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => setAiPrompt(prompt)}
+                                    disabled={isAnalyzing}
+                                    className="w-full text-left px-3 py-2 text-sm text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors border border-transparent hover:border-white/10 disabled:opacity-50"
+                                >
+                                    {prompt}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
